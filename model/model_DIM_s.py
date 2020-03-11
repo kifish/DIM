@@ -197,6 +197,7 @@ class DIM(object):
             utterances_output = tf.concat(axis=2, values=u_rnn_output)  # [batch_size*max_utter_num, max_utter_len, rnn_size*2]
             r_rnn_output, r_rnn_states = lstm_layer(flattened_responses_embedded, flattened_responses_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=True)
             responses_output = tf.concat(axis=2, values=r_rnn_output)   # [batch_size, max_response_len, rnn_size*2]
+            # axis = 2 把前向和后向的输出拼起来
             p_rnn_output, p_rnn_states = lstm_layer(flattened_personas_embedded, flattened_personas_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=True)
             personas_output = tf.concat(axis=2, values=p_rnn_output)    # [batch_size*max_persona_num, max_persona_len, rnn_size*2]
             print("encoded utterances : {}".format(utterances_output.shape))
@@ -210,7 +211,7 @@ class DIM(object):
             output_dim = utterances_output.get_shape()[-1].value #  rnn_size*2
             utterances_output = tf.reshape(utterances_output, [-1, max_utter_num*max_utter_len, output_dim])      # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
             #utterances_output_tiled = tf.tile(tf.expand_dims(utterances_output, 1), [1, max_response_num, 1, 1])  # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-            utterances_output_tiled = utterances_output
+            utterances_output_tiled = utterances_output # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
             responses_output = tf.reshape(responses_output, [-1,max_response_len, output_dim]) # [batch_size, max_response_len, rnn_size*2]
             personas_output = tf.reshape(personas_output, [-1, max_persona_num*max_persona_len, output_dim])      # [batch_size, max_persona_num*max_persona_len, rnn_size*2]
             #personas_output_tiled = tf.tile(tf.expand_dims(personas_output, 1), [1, max_response_num, 1, 1])     
@@ -235,7 +236,7 @@ class DIM(object):
                                 values = [utterances_output_tiled, # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
                                         attended_utterances_output_ur, #  [batch_size, max_utter_num*max_utter_len, rnn_size*2]
                                         tf.multiply(utterances_output_tiled, attended_utterances_output_ur), # 点乘
-                                        utterances_output_tiled-attended_utterances_output_ur # [batch_size, max_response_num, max_utter_num*max_utter_len, rnn_size*2]
+                                        utterances_output_tiled-attended_utterances_output_ur # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
                                         ]
                              )  
             # [batch_size, max_utter_num*max_utter_len, rnn_size*8]
@@ -256,6 +257,7 @@ class DIM(object):
             # self.utterances_len [batch_size, max_utter_num]
             tiled_flattened_utterances_len = tf.reshape(self.utterances_len, [-1, ]) 
             # tiled_flattened_utterances_len [batch_size*max_utter_num, ]
+            # new birnn
             u_ur_rnn_output, u_ur_rnn_state = lstm_layer(m_u_ur, tiled_flattened_utterances_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=False)
             r_ur_rnn_output, r_ur_rnn_state = lstm_layer(m_r_ur, flattened_responses_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             utterances_output_cross_ur = tf.concat(axis=-1, values=u_ur_rnn_output)   # [batch_size*max_utter_num, max_utter_len, rnn_size*2]
@@ -287,7 +289,7 @@ class DIM(object):
                                 personas_output_tiled-attended_personas_output_pr]) 
             # [batch_size, max_persona_num*max_persona_len, rnn_size*8]
             m_r_pr = tf.concat(axis=-1, 
-                            values=[responses_output, 
+                            values=[responses_output,  # 冗余结构
                             attended_responses_output_pr, 
                             tf.multiply(responses_output, attended_responses_output_pr),
                              responses_output-attended_responses_output_pr])     
@@ -299,6 +301,7 @@ class DIM(object):
             
             tiled_flattened_personas_len = tf.reshape(self.personas_len, [-1, ]) 
             # [batch_size*max_persona_num, ]
+            # old birnn
             p_pr_rnn_output, p_pr_rnn_state = lstm_layer(m_p_pr, tiled_flattened_personas_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             r_pr_rnn_output, r_pr_rnn_state = lstm_layer(m_r_pr, flattened_responses_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             personas_output_cross_pr = tf.concat(axis=-1, values=p_pr_rnn_output)   # [batch_size*max_persona_num, max_persona_len, rnn_size*2]
@@ -309,6 +312,7 @@ class DIM(object):
         # =============================== Aggregation layer ===============================
         with tf.variable_scope("aggregation_layer") as vs:
             # aggregate utterance across utterance_len
+            # utterances_output_cross_ur: [batch_size*max_utter_num, max_utter_len, rnn_size*2]
             final_utterances_max = tf.reduce_max(utterances_output_cross_ur, axis=1) # [batch_size*max_utter_num, rnn_size*2]
             final_utterances_state = tf.concat(axis=1, values=[u_ur_rnn_state[0].h, u_ur_rnn_state[1].h]) # [batch_size*max_utter_num, rnn_size*2]
             final_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])  # [batch_size*max_utter_num, 4*rnn_size]
@@ -317,6 +321,7 @@ class DIM(object):
             final_utterances = tf.reshape(final_utterances, [-1, max_utter_num, output_dim*2])   # [batch_size, max_utter_num, 4*rnn_size]
             tiled_utters_num = tf.reshape(self.utters_num, [-1, ])  # [batch_size, ]
             rnn_scope_aggre = "bidirectional_rnn_aggregation"
+            # new birnn
             final_utterances_output, final_utterances_state = lstm_layer(final_utterances, tiled_utters_num, rnn_size, self.dropout_keep_prob, rnn_scope_aggre, scope_reuse=False)
             final_utterances_output = tf.concat(axis=2, values=final_utterances_output)  # [batch_size, max_utter_num, 2*rnn_size]
             final_utterances_max = tf.reduce_max(final_utterances_output, axis=1)    # [batch_size, 2*rnn_size]
@@ -324,6 +329,7 @@ class DIM(object):
             aggregated_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])               # [batch_size, 4*rnn_size]
 
             # aggregate response across response_len
+            # responses_output_cross_ur  # [batch_size, max_response_len, rnn_size*2]
             final_responses_max = tf.reduce_max(responses_output_cross_ur, axis=1)                           # [batch_size, 2*rnn_size]
             final_responses_state = tf.concat(axis=1, values=[r_ur_rnn_state[0].h, r_ur_rnn_state[1].h])     # [batch_size, 2*rnn_size]
             aggregated_responses_ur = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) # [batch_size, 4*rnn_size]
@@ -339,7 +345,7 @@ class DIM(object):
             pers_w = tf.get_variable("pers_w", [output_dim*2, 1], initializer=tf.contrib.layers.xavier_initializer())
             pers_b = tf.get_variable("pers_b", shape=[1, ], initializer=tf.zeros_initializer())
             # final_personas : [batch_size, max_persona_num, 4*rnn_size]
-            pers_weights = tf.nn.relu(tf.einsum('bij,jk->bik', final_personas, pers_w) + pers_b)  
+            pers_weights = tf.nn.relu(tf.einsum('bij,jk->bik', final_personas, pers_w) + pers_b)  # attention; different from context; select doc
              # [batch_size,max_persona_num, 1]
             tiled_personas_num = tf.reshape(self.personas_num, [-1, ])  
             # [batch_size, ]
@@ -377,7 +383,7 @@ class DIM(object):
             regularizer = tf.contrib.layers.l2_regularizer(l2_reg_lambda)
             #regularizer = None
             # dropout On MLP
-            joined_feature = tf.nn.dropout(joined_feature, keep_prob=self.dropout_keep_prob)
+            joined_feature = tf.nn.dropout(joined_feature, keep_prob=self.dropout_keep_prob) # dropout
             full_out = tf.contrib.layers.fully_connected(joined_feature, hidden_output_size,
                                                             activation_fn=tf.nn.relu,
                                                             reuse=False,

@@ -6,8 +6,8 @@ import time
 import datetime
 import operator
 from collections import defaultdict
-from model import metrics
-from model import data_helpers
+from model import metrics_s
+from model import data_helpers_s
 from model.model_DIM_s import DIM
 from tqdm import tqdm
 
@@ -50,14 +50,14 @@ print("")
 # Load data
 print("Loading data...")
 
-vocab = data_helpers.load_vocab(FLAGS.vocab_file)
+vocab = data_helpers_s.load_vocab(FLAGS.vocab_file)
 print('vocabulary size: {}'.format(len(vocab)))
-charVocab = data_helpers.load_char_vocab(FLAGS.char_vocab_file)
+charVocab = data_helpers_s.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
-train_dataset = data_helpers.load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+train_dataset = data_helpers_s.load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('train dataset size: {}'.format(len(train_dataset)))
-valid_dataset = data_helpers.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+valid_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('valid dataset size: {}'.format(len(valid_dataset)))
 
 
@@ -128,7 +128,7 @@ with tf.Graph().as_default():
         checkpoint_prefix = os.path.join(checkpoint_dir, "model")
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
-        saver = tf.train.Saver(tf.global_variables())
+        saver = tf.train.Saver(tf.global_variables()) # default: max_to_keep=5
 
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
@@ -170,12 +170,12 @@ with tf.Graph().as_default():
 
 
         def dev_step():
-            results = defaultdict(list)
+            results = []
             num_test = 0
             num_correct = 0.0
-            valid_batches = data_helpers.batch_iter_s(valid_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+            valid_batches = data_helpers_s.batch_iter_s(valid_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
                                       FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
-                                      charVocab, FLAGS.max_word_length, shuffle=True)
+                                      charVocab, FLAGS.max_word_length, shuffle=False) # important
             for valid_batch in valid_batches:
                 x_utterances, x_utterances_len, x_response, x_response_len, \
                     x_utters_num, x_target, x_ids, \
@@ -204,36 +204,32 @@ with tf.Graph().as_default():
                 num_test += len(predicted_prob)
                 if num_test % 1000 == 0:
                     print(num_test)
-                num_correct += len(predicted_prob) * batch_accuracy
+                num_correct += len(predicted_prob) * batch_accuracy # 这里因为精度问题可能会不准确
 
-                # predicted_prob = [batch_size, max_response_num]
+                # predicted_prob [batch_size,]
                 for i in range(len(predicted_prob)):
-                    probs = predicted_prob[i]
-                    us_id = x_ids[i]
+                    prob = predicted_prob[i]
                     label = x_target[i]
-                    labels = np.zeros(FLAGS.max_response_num)
-                    labels[label] = 1
-                    for r_id, prob in enumerate(probs):
-                        results[us_id].append((str(r_id), labels[r_id], prob))
-
+                    results.append((prob,label))   
             #calculate top-1 precision
             print('num_test_samples: {}  test_accuracy: {}'.format(num_test, num_correct/num_test))
-            accu, precision, recall, f1, loss = metrics.classification_metrics(results)
+            accu, precision, recall, f1, loss = metrics_s.classification_metrics(results)
             print('Accuracy: {}, Precision: {}  Recall: {}  F1: {} Loss: {}'.format(accu, precision, recall, f1, loss))
 
-            mvp = metrics.mean_average_precision(results)
-            mrr = metrics.mean_reciprocal_rank(results)
-            top_1_precision = metrics.top_1_precision(results)
-            total_valid_query = metrics.get_num_valid_query(results)
+            mvp = metrics_s.mean_average_precision(results)
+            mrr = metrics_s.mean_reciprocal_rank(results)
+            top_1_precision = metrics_s.top_1_precision(results)
+            total_valid_query = metrics_s.get_num_valid_query(results)
             print('MAP (mean average precision: {}\tMRR (mean reciprocal rank): {}\tTop-1 precision: {}\tNum_query: {}'.format(mvp, mrr, top_1_precision, total_valid_query))
 
             return mrr
 
         best_mrr = 0.0
         print('building dataset...')
-        batches = data_helpers.batch_iter_s(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+        batches = data_helpers_s.batch_iter_s(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
                                           FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
-                                          charVocab, FLAGS.max_word_length, shuffle=True)
+                                          charVocab, FLAGS.max_word_length, shuffle=False) # 20个不分开
+        print('dataset builded...')
         step = 0
         step_total = 1314380 // FLAGS.batch_size * FLAGS.num_epochs
         pbar = tqdm(total = step_total)

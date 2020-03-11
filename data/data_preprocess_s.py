@@ -52,7 +52,7 @@ def data_process_none(input_path, output_path, fname):
 		for dialogue in context_candidates:
 			f.write(("\t".join(dialogue) + "\n").encode('utf-8'))
 
-def data_process_self(input_path, output_path, fname):
+def data_process_self_s(input_path, output_path, fname):
 
 	dialogues = []
 	dialogue = []
@@ -82,60 +82,11 @@ def data_process_self(input_path, output_path, fname):
 				response = fields[1]
 				candidates = fields[-1].split("|")
 				random.shuffle(candidates)
-				label = candidates.index(response)
-
-				context_history.append(context)
-				# (context, candidates, label, partner's persona, your persona)
-	 			context_candidates.append( [" _eos_ ".join(context_history) + " _eos_", 
-		 									"|".join(candidates), 
-		 									str(label),
-		 									"NA", 
-		 									"|".join(persona)] )
-	 			context_history.append(response)
-	print("{} is composed of {} context-candidates".format(fname, len(context_candidates)))
-
-	with open(os.path.join(output_path, "processed_{}".format(fname)), "w") as f:
-		print("Saving dataset to processed_{} ...".format(fname))
-		for dialogue in context_candidates:
-			f.write(("\t".join(dialogue) + "\n").encode('utf-8'))
-
-
-def data_process_self2(input_path, output_path, fname):
-
-	dialogues = []
-	dialogue = []
-	with open(os.path.join(input_path, fname), "r") as f:
-		for line in f:
-			line = line.decode('utf-8').strip()
-			if line.split()[0] == "1":  # new dialogue
-				dialogues.append(dialogue)
-				dialogue = []
-			dialogue.append(line)
-
-		dialogues.append(dialogue)
-		dialogues.remove([])
-	print("{} is composed of {} dialogues".format(fname, len(dialogues)))
-
-	context_candidates = []
-	for dialogue in dialogues:
-		persona = []
-		context_history = []
-		for line in dialogue:
-			fields = line.strip().split("\t")
-
-			if len(fields) == 1:
-				persona.append((" ").join(tokenize(fields[0])[4:]))
-			if len(fields) == 4:
-				context = " ".join(tokenize(fields[0])[1:])
-				response = fields[1]
-				candidates = fields[-1].split("|")
-				random.shuffle(candidates)
-				label = candidates.index(response)
 				context_history.append(context)
 				# (context, candidate, label, your persona)
 				for candidate in candidates:
 					label = 1 if candidate == response else 0
-					context_candidates.append( [" _eos_ ".join(context_history) + " _eos_", 
+					context_candidates.append( [" _eos_ ".join(context_history) + " _eos_",  # 加_eos_
 												candidate, 
 												str(label),
 												"NA", 
@@ -250,8 +201,7 @@ def data_process_both(input_path, output_path, fname):
 if __name__ == '__main__':
 
 	input_path = "./personachat"
-	# output_path = "./personachat_processed"
-	output_path = "./personachat_20processed"
+	output_path = "./personachat_s_processed"
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -275,7 +225,7 @@ if __name__ == '__main__':
 	
 	for file in files_self:
 		print("Preprocessing {} ...".format(file))
-		data_process_self(input_path, output_path, file)
+		data_process_self_s(input_path, output_path, file)
 		print("="*60)
 
 	# for file in files_other:
@@ -292,7 +242,6 @@ if __name__ == '__main__':
 
 
 	'''
-	data_process_self2
 	There are 6 files to process.
 	Start processing data ...
 	Preprocessing test_self_original.txt ...
@@ -323,43 +272,6 @@ if __name__ == '__main__':
 	Preprocessing valid_self_revised.txt ...
 	valid_self_revised.txt is composed of 1000 dialogues
 	valid_self_revised.txt is composed of 156020 context-candidates
-	Saving dataset to processed_valid_self_revised.txt ...
-	============================================================
-	data preprocess done!
-	'''
-
-	'''
-	data_process_self
-	There are 6 files to process.
-	Start processing data ...
-	Preprocessing test_self_original.txt ...
-	test_self_original.txt is composed of 968 dialogues
-	test_self_original.txt is composed of 7512 context-candidates
-	Saving dataset to processed_test_self_original.txt ...
-	============================================================
-	Preprocessing test_self_revised.txt ...
-	test_self_revised.txt is composed of 968 dialogues
-	test_self_revised.txt is composed of 7512 context-candidates
-	Saving dataset to processed_test_self_revised.txt ...
-	============================================================
-	Preprocessing train_self_original.txt ...
-	train_self_original.txt is composed of 8939 dialogues
-	train_self_original.txt is composed of 65719 context-candidates
-	Saving dataset to processed_train_self_original.txt ...
-	============================================================
-	Preprocessing train_self_revised.txt ...
-	train_self_revised.txt is composed of 8939 dialogues
-	train_self_revised.txt is composed of 65719 context-candidates
-	Saving dataset to processed_train_self_revised.txt ...
-	============================================================
-	Preprocessing valid_self_original.txt ...
-	valid_self_original.txt is composed of 1000 dialogues
-	valid_self_original.txt is composed of 7801 context-candidates
-	Saving dataset to processed_valid_self_original.txt ...
-	============================================================
-	Preprocessing valid_self_revised.txt ...
-	valid_self_revised.txt is composed of 1000 dialogues
-	valid_self_revised.txt is composed of 7801 context-candidates
 	Saving dataset to processed_valid_self_revised.txt ...
 	============================================================
 	data preprocess done!

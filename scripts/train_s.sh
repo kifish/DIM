@@ -1,7 +1,7 @@
 cur_dir=`pwd`
 parentdir="$(dirname $cur_dir)"
 
-DATA_DIR=${parentdir}/data/personachat_processed
+DATA_DIR=${parentdir}/data/personachat_s_processed
 
 # for self_original
 train_file=$DATA_DIR/processed_train_self_original.txt
@@ -30,7 +30,7 @@ max_word_length=18
 embedding_dim=400
 rnn_size=200
 
-batch_size=16
+batch_size=40
 lambda=0
 dropout_keep_prob=0.8
 num_epochs=10
