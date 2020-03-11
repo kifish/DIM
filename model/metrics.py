@@ -1,3 +1,4 @@
+#encoding=utf8
 import operator
 import math
 
@@ -11,7 +12,7 @@ def is_valid_query(v):
             num_neg += 1
     if num_pos > 0 and num_neg > 0:
         return True
-    else:
+    else: # 只有一类样本，return false
         return False
 
 def get_num_valid_query(results):
@@ -22,13 +23,13 @@ def get_num_valid_query(results):
         num_query += 1
     return num_query
 
-def top_1_precision(results):
+def top_1_precision(results): # r1
     num_query = 0
     top_1_correct = 0.0
     for k, v in results.items():
         if not is_valid_query(v):
             continue
-        num_query += 1
+        num_query += 1 # V是list
         sorted_v = sorted(v, key=operator.itemgetter(2), reverse=True)
         aid, label, score = sorted_v[0]
         if label > 0:
@@ -94,8 +95,11 @@ def classification_metrics(results):
     predicted_positive = 0
 
     loss = 0.0;
-    for k, v in results.items():
-        for rec in v:
+    for k, v in results.items(): # k 为sample（一组） id，一个sample有20个候选response
+        for rec in v: 
+            # aid相当于候选response的id
+            # label, 0 or 1
+            # score : float
             total_num += 1
             aid, label, score = rec
             
@@ -111,13 +115,13 @@ def classification_metrics(results):
 
             if score > 0.5 and label > 0:
                 total_correct += 1
-                positive_correct += 1
+                positive_correct += 1 # 导致r1计算不一致
                 
             if score < 0.5 and label < 0.5:
                 total_correct += 1
 
     accuracy = float(total_correct)/total_num
     precision = float(positive_correct)/(predicted_positive+1e-12)
-    recall    = float(positive_correct)/true_positive
+    recall    = float(positive_correct)/true_positive # R1 < recall < R20
     F1 = 2.0 * precision * recall/(1e-12+precision + recall)
     return accuracy, precision, recall, F1, loss/total_num;

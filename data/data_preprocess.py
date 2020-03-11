@@ -1,3 +1,4 @@
+#encoding=utf8
 import os
 import random
 import numpy as np
@@ -51,7 +52,6 @@ def data_process_none(input_path, output_path, fname):
 		for dialogue in context_candidates:
 			f.write(("\t".join(dialogue) + "\n").encode('utf-8'))
 
-
 def data_process_self(input_path, output_path, fname):
 
 	dialogues = []
@@ -99,6 +99,54 @@ def data_process_self(input_path, output_path, fname):
 		for dialogue in context_candidates:
 			f.write(("\t".join(dialogue) + "\n").encode('utf-8'))
 
+
+def data_process_self2(input_path, output_path, fname):
+
+	dialogues = []
+	dialogue = []
+	with open(os.path.join(input_path, fname), "r") as f:
+		for line in f:
+			line = line.decode('utf-8').strip()
+			if line.split()[0] == "1":  # new dialogue
+				dialogues.append(dialogue)
+				dialogue = []
+			dialogue.append(line)
+
+		dialogues.append(dialogue)
+		dialogues.remove([])
+	print("{} is composed of {} dialogues".format(fname, len(dialogues)))
+
+	context_candidates = []
+	for dialogue in dialogues:
+		persona = []
+		context_history = []
+		for line in dialogue:
+			fields = line.strip().split("\t")
+
+			if len(fields) == 1:
+				persona.append((" ").join(tokenize(fields[0])[4:]))
+			if len(fields) == 4:
+				context = " ".join(tokenize(fields[0])[1:])
+				response = fields[1]
+				candidates = fields[-1].split("|")
+				random.shuffle(candidates)
+				label = candidates.index(response)
+				context_history.append(context)
+				# (context, candidate, label, your persona)
+				for candidate in candidates:
+					label = 1 if candidate == response else 0
+					context_candidates.append( [" _eos_ ".join(context_history) + " _eos_", 
+												candidate, 
+												str(label),
+												"NA", 
+												"|".join(persona)])
+	 			context_history.append(response)
+	print("{} is composed of {} context-candidates".format(fname, len(context_candidates)))
+
+	with open(os.path.join(output_path, "processed_{}".format(fname)), "w") as f:
+		print("Saving dataset to processed_{} ...".format(fname))
+		for dialogue in context_candidates:
+			f.write(("\t".join(dialogue) + "\n").encode('utf-8'))
 
 def data_process_other(input_path, output_path, fname):
 
@@ -202,37 +250,117 @@ def data_process_both(input_path, output_path, fname):
 if __name__ == '__main__':
 
 	input_path = "./personachat"
-	output_path = "./personachat_processed"
-
+	# output_path = "./personachat_processed"
+	output_path = "./personachat_20processed"
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
 	files = [file for file in os.listdir(input_path)]
-	files_none = [file for file in files if file.split("_")[1] == "none"]
-	files_self = [file for file in files if file.split("_")[1] == "self"]
-	files_other = [file for file in files if file.split("_")[1] == "other"]
-	files_both = [file for file in files if file.split("_")[1] == "both"]
+	# files_none = [file for file in files if file.split("_")[1] == "none"]
+	files_self = [file for file in files if file[-4:] == '.txt' and file.split("_")[1] == "self"]
+	# files_other = [file for file in files if file.split("_")[1] == "other"]
+	# files_both = [file for file in files if file.split("_")[1] == "both"]
 
-	print("There are {} files to process.\nStart processing data ...".format(len(files)))
-
-	for file in files_none:
-		print("Preprocessing {} ...".format(file))
-		data_process_none(input_path, output_path, file)
-		print("="*60)
+	# print("There are {} files to process.\nStart processing data ...".format(len(files)))
+	print("There are {} files to process.\nStart processing data ...".format(len(files_self)))
+	# for file in files_none:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_none(input_path, output_path, file)
+	# 	print("="*60)
+	
+	# for file in files_self:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_self2(input_path, output_path, file)
+	# 	print("="*60)
 	
 	for file in files_self:
 		print("Preprocessing {} ...".format(file))
 		data_process_self(input_path, output_path, file)
 		print("="*60)
+
+	# for file in files_other:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_other(input_path, output_path, file)
+	# 	print("="*60)
 	
-	for file in files_other:
-		print("Preprocessing {} ...".format(file))
-		data_process_other(input_path, output_path, file)
-		print("="*60)
-	
-	for file in files_both:
-		print("Preprocessing {} ...".format(file))
-		data_process_both(input_path, output_path, file)
-		print("="*60)
+	# for file in files_both:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_both(input_path, output_path, file)
+	# 	print("="*60)
 	
 	print("data preprocess done!")
+
+
+	'''
+	data_process_self2
+	There are 6 files to process.
+	Start processing data ...
+	Preprocessing test_self_original.txt ...
+	test_self_original.txt is composed of 968 dialogues
+	test_self_original.txt is composed of 150240 context-candidates
+	Saving dataset to processed_test_self_original.txt ...
+	============================================================
+	Preprocessing test_self_revised.txt ...
+	test_self_revised.txt is composed of 968 dialogues
+	test_self_revised.txt is composed of 150240 context-candidates
+	Saving dataset to processed_test_self_revised.txt ...
+	============================================================
+	Preprocessing train_self_original.txt ...
+	train_self_original.txt is composed of 8939 dialogues
+	train_self_original.txt is composed of 1314380 context-candidates
+	Saving dataset to processed_train_self_original.txt ...
+	============================================================
+	Preprocessing train_self_revised.txt ...
+	train_self_revised.txt is composed of 8939 dialogues
+	train_self_revised.txt is composed of 1314380 context-candidates
+	Saving dataset to processed_train_self_revised.txt ...
+	============================================================
+	Preprocessing valid_self_original.txt ...
+	valid_self_original.txt is composed of 1000 dialogues
+	valid_self_original.txt is composed of 156020 context-candidates
+	Saving dataset to processed_valid_self_original.txt ...
+	============================================================
+	Preprocessing valid_self_revised.txt ...
+	valid_self_revised.txt is composed of 1000 dialogues
+	valid_self_revised.txt is composed of 156020 context-candidates
+	Saving dataset to processed_valid_self_revised.txt ...
+	============================================================
+	data preprocess done!
+	'''
+
+	'''
+	data_process_self
+	There are 6 files to process.
+	Start processing data ...
+	Preprocessing test_self_original.txt ...
+	test_self_original.txt is composed of 968 dialogues
+	test_self_original.txt is composed of 7512 context-candidates
+	Saving dataset to processed_test_self_original.txt ...
+	============================================================
+	Preprocessing test_self_revised.txt ...
+	test_self_revised.txt is composed of 968 dialogues
+	test_self_revised.txt is composed of 7512 context-candidates
+	Saving dataset to processed_test_self_revised.txt ...
+	============================================================
+	Preprocessing train_self_original.txt ...
+	train_self_original.txt is composed of 8939 dialogues
+	train_self_original.txt is composed of 65719 context-candidates
+	Saving dataset to processed_train_self_original.txt ...
+	============================================================
+	Preprocessing train_self_revised.txt ...
+	train_self_revised.txt is composed of 8939 dialogues
+	train_self_revised.txt is composed of 65719 context-candidates
+	Saving dataset to processed_train_self_revised.txt ...
+	============================================================
+	Preprocessing valid_self_original.txt ...
+	valid_self_original.txt is composed of 1000 dialogues
+	valid_self_original.txt is composed of 7801 context-candidates
+	Saving dataset to processed_valid_self_original.txt ...
+	============================================================
+	Preprocessing valid_self_revised.txt ...
+	valid_self_revised.txt is composed of 1000 dialogues
+	valid_self_revised.txt is composed of 7801 context-candidates
+	Saving dataset to processed_valid_self_revised.txt ...
+	============================================================
+	data preprocess done!
+	'''

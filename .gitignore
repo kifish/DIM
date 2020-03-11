@@ -1,0 +1,5 @@
+.vscode/
+data/personachat/
+data/personachat_processed/
+data/personachat_20processed/
+*.pyc

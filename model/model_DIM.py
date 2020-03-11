@@ -1,3 +1,4 @@
+#encoding=utf8
 import tensorflow as tf
 import numpy as np
 
@@ -190,7 +191,7 @@ class DIM(object):
             flattened_personas_embedded = tf.reshape(personas_embedded, [-1, max_persona_len, emb_dim])    # [batch_size*max_persona_num, max_persona_len, emb]
             flattened_personas_len = tf.reshape(self.personas_len, [-1])                                   # [batch_size*max_persona_num, ]
 
-            rnn_scope_name = "bidirectional_rnn"
+            rnn_scope_name = "bidirectional_rnn" # 这里的lstm实现了mask
             u_rnn_output, u_rnn_states = lstm_layer(flattened_utterances_embedded, flattened_utterances_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=False)
             utterances_output = tf.concat(axis=2, values=u_rnn_output)  # [batch_size*max_utter_num, max_utter_len, rnn_size*2]
             r_rnn_output, r_rnn_states = lstm_layer(flattened_responses_embedded, flattened_responses_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=True)

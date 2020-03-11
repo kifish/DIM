@@ -1,6 +1,7 @@
 
 test_out_filename = "persona_test_out.txt"
-
+# us_id, r_id, prob_score, rank, label
+# example_id,response_id (0 - 19),...,rank (1-20)
 with open(test_out_filename, 'r') as f:
 	cur_q_id = None
 	num_query = 0

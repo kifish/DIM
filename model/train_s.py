@@ -6,21 +6,17 @@ import time
 import datetime
 import operator
 from collections import defaultdict
-import sys
-sys.path.insert(0,'/home/dff/k/DIM/')
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 from model import metrics
 from model import data_helpers
-from model.model_DIM import DIM
+from model.model_DIM_s import DIM
 from tqdm import tqdm
 
-
 # Files
-tf.flags.DEFINE_string("train_file", "/home/dff/k/DIM/data/personachat_20processed/processed_train_self_original.txt", "path to train file")
-tf.flags.DEFINE_string("valid_file", "/home/dff/k/DIM/data/personachat_20processed/processed_valid_self_original.txt", "path to valid file")
-tf.flags.DEFINE_string("vocab_file", "/home/dff/k/DIM/data/personachat_20processed/vocab.txt", "vocabulary file")
-tf.flags.DEFINE_string("char_vocab_file",  "/home/dff/k/DIM/data/personachat_20processed/char_vocab.txt", "path to char vocab file")
-tf.flags.DEFINE_string("embedded_vector_file", "/home/dff/k/DIM/data/personachat_20processed/glove_42B_300d_vec_plus_word2vec_100.txt", "pre-trained embedded word vector")
+tf.flags.DEFINE_string("train_file", "", "path to train file")
+tf.flags.DEFINE_string("valid_file", "", "path to valid file")
+tf.flags.DEFINE_string("vocab_file", "", "vocabulary file")
+tf.flags.DEFINE_string("char_vocab_file",  "", "path to char vocab file")
+tf.flags.DEFINE_string("embedded_vector_file", "", "pre-trained embedded word vector")
 
 # Model Hyperparameters
 tf.flags.DEFINE_integer("max_utter_num", 15, "max utterance number")
@@ -30,15 +26,15 @@ tf.flags.DEFINE_integer("max_response_len", 20, "max response length")
 tf.flags.DEFINE_integer("max_persona_num", 5, "max persona number")
 tf.flags.DEFINE_integer("max_persona_len", 15, "max persona length")
 tf.flags.DEFINE_integer("max_word_length", 18, "max word length")
-tf.flags.DEFINE_integer("embedding_dim", 400, "dimensionality of word embedding")
+tf.flags.DEFINE_integer("embedding_dim", 200, "dimensionality of word embedding")
 tf.flags.DEFINE_integer("rnn_size", 200, "number of RNN units")
 
 # Training parameters
-tf.flags.DEFINE_integer("batch_size", 16, "batch size (default: 128)")
-tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularizaion lambda (default: 0.0)") # must be float
-tf.flags.DEFINE_float("dropout_keep_prob", 0.8, "dropout keep probability (default: 1.0)")
-tf.flags.DEFINE_integer("num_epochs", 10, "number of training epochs (default: 1000000)")
-tf.flags.DEFINE_integer("evaluate_every", 500, "evaluate model on valid dataset after this many steps (default: 1000)")
+tf.flags.DEFINE_integer("batch_size", 128, "batch size (default: 128)")
+tf.flags.DEFINE_float("l2_reg_lambda", 0, "L2 regularizaion lambda (default: 0)")
+tf.flags.DEFINE_float("dropout_keep_prob", 1.0, "dropout keep probability (default: 1.0)")
+tf.flags.DEFINE_integer("num_epochs", 1000000, "number of training epochs (default: 1000000)")
+tf.flags.DEFINE_integer("evaluate_every", 1000, "evaluate model on valid dataset after this many steps (default: 1000)")
 
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
@@ -59,9 +55,9 @@ print('vocabulary size: {}'.format(len(vocab)))
 charVocab = data_helpers.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
-train_dataset = data_helpers.load_dataset(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+train_dataset = data_helpers.load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('train dataset size: {}'.format(len(train_dataset)))
-valid_dataset = data_helpers.load_dataset(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+valid_dataset = data_helpers.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('valid dataset size: {}'.format(len(valid_dataset)))
 
 
@@ -177,7 +173,7 @@ with tf.Graph().as_default():
             results = defaultdict(list)
             num_test = 0
             num_correct = 0.0
-            valid_batches = data_helpers.batch_iter(valid_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+            valid_batches = data_helpers.batch_iter_s(valid_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
                                       FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
                                       charVocab, FLAGS.max_word_length, shuffle=True)
             for valid_batch in valid_batches:
@@ -234,14 +230,14 @@ with tf.Graph().as_default():
             return mrr
 
         best_mrr = 0.0
-        batches = data_helpers.batch_iter(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+        print('building dataset...')
+        batches = data_helpers.batch_iter_s(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
                                           FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
                                           charVocab, FLAGS.max_word_length, shuffle=True)
-        print('dataset builded...')
         step = 0
-        step_total = 65719 // FLAGS.batch_size * FLAGS.num_epochs
+        step_total = 1314380 // FLAGS.batch_size * FLAGS.num_epochs
         pbar = tqdm(total = step_total)
-        for batch in batches: # DO not use tqdm here!
+        for batch in batches:
             step += 1
             x_utterances, x_utterances_len, x_response, x_response_len, \
                 x_utters_num, x_target, x_ids, \
@@ -259,4 +255,3 @@ with tf.Graph().as_default():
             pbar.update(1)
         
         pbar.close()
-   

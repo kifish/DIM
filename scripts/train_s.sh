@@ -1,7 +1,7 @@
 cur_dir=`pwd`
 parentdir="$(dirname $cur_dir)"
 
-DATA_DIR=${parentdir}/data/personachat_20processed
+DATA_DIR=${parentdir}/data/personachat_processed
 
 # for self_original
 train_file=$DATA_DIR/processed_train_self_original.txt
@@ -30,15 +30,15 @@ max_word_length=18
 embedding_dim=400
 rnn_size=200
 
-batch_size=2
-lambda=0.0
+batch_size=16
+lambda=0
 dropout_keep_prob=0.8
 num_epochs=10
 evaluate_every=500
 
 PKG_DIR=${parentdir}
 
-PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=1 python -u ${PKG_DIR}/model/train.py \
+PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=1 python -u ${PKG_DIR}/model/train_s.py \
                 --train_file $train_file \
                 --valid_file $valid_file \
                 --vocab_file $vocab_file \
