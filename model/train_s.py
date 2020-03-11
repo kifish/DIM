@@ -55,7 +55,8 @@ print('vocabulary size: {}'.format(len(vocab)))
 charVocab = data_helpers_s.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
-train_dataset = data_helpers_s.load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+# for debug
+train_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('train dataset size: {}'.format(len(train_dataset)))
 valid_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('valid dataset size: {}'.format(len(valid_dataset)))
@@ -159,13 +160,17 @@ with tf.Graph().as_default():
               dim.personas_num: x_personas_num
             }
 
-            _, step, loss, accuracy, predicted_prob = sess.run(
-                [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+            _, step, loss= sess.run(
+                [train_op, global_step, dim.mean_loss],
                 feed_dict)
 
-            if step % 100 == 0:
-                time_str = datetime.datetime.now().isoformat()
-                print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+            # _, step, loss, accuracy, predicted_prob = sess.run(
+            #     [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+            #     feed_dict)
+
+            # if step % 100 == 0:
+            #     time_str = datetime.datetime.now().isoformat()
+            #     print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
             #train_summary_writer.add_summary(summaries, step)
 
 
@@ -249,5 +254,6 @@ with tf.Graph().as_default():
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print("Saved model checkpoint to {}\n".format(path))
             pbar.update(1)
+            break
         
         pbar.close()

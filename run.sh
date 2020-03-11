@@ -9,3 +9,5 @@ sh train_s.sh
 
 # debug
 # export LC_ALL=C
+# cd model
+# CUDA_VISIBLE_DEVICES='' python data_helpers_s.py

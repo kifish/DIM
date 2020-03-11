@@ -165,6 +165,7 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
 
             x_utterances = []
             x_utterances_len = []
+
             x_responses = []
             x_responses_len = []
 
@@ -174,6 +175,7 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
 
             x_utterances_char=[]
             x_utterances_char_len=[]
+
             x_responses_char=[]
             x_responses_char_len=[]
 
@@ -204,10 +206,12 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
                     new_response_vec = normalize_vec(rs_vec[i], max_response_len)
                     new_responses_vec[i] = new_response_vec
                     new_responses_len[i] = rs_len[i]
+                    break
                 x_responses.append(new_responses_vec[0])
                 x_responses_len.append(new_responses_len[0])
 
                 x_labels.append(label)
+
                 x_ids.append(us_id)
                 x_utterances_num.append(us_num)
 
@@ -254,10 +258,84 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
 
                 x_personas_num.append(ps_num)
 
+
+            # debug 
+            print('x_responses : {}'.format(np.array(x_responses).shape))
+            print('x_responses_len : {}'.format(np.array(x_responses_len).shape))
+            print('x_labels : {}'.format(np.array(x_labels).shape))
+            print('x_responses_char : {}'.format(np.array(x_responses_char).shape))
+            print('x_responses_char_len : {}'.format(np.array(x_responses_char_len).shape))
+
             yield np.array(x_utterances), np.array(x_utterances_len), np.array(x_responses), np.array(x_responses_len), \
                   np.array(x_utterances_num), np.array(x_labels), x_ids, \
                   np.array(x_utterances_char), np.array(x_utterances_char_len), np.array(x_responses_char), np.array(x_responses_char_len), \
                   np.array(x_personas), np.array(x_personas_len), np.array(x_personas_char), np.array(x_personas_char_len), np.array(x_personas_num)
 
+
+
+if __name__ == '__main__':
+    import tensorflow as tf
+    # Files
+    tf.flags.DEFINE_string("train_file", "../data/personachat_s_processed/processed_train_self_original.txt", "path to train file")
+    tf.flags.DEFINE_string("valid_file", "../data/personachat_s_processed/processed_valid_self_original.txt", "path to valid file")
+    tf.flags.DEFINE_string("vocab_file", "../data/personachat_s_processed/vocab.txt", "vocabulary file")
+    tf.flags.DEFINE_string("char_vocab_file",  "../data/personachat_s_processed/char_vocab.txt", "path to char vocab file")
+    tf.flags.DEFINE_string("embedded_vector_file", "../data/personachat_s_processed/glove_42B_300d_vec_plus_word2vec_100.txt", "pre-trained embedded word vector")
+
+    # Model Hyperparameters
+    tf.flags.DEFINE_integer("max_utter_num", 15, "max utterance number")
+    tf.flags.DEFINE_integer("max_utter_len", 20, "max utterance length")
+    tf.flags.DEFINE_integer("max_response_num", 20, "max response candidate number")
+    tf.flags.DEFINE_integer("max_response_len", 20, "max response length")
+    tf.flags.DEFINE_integer("max_persona_num", 5, "max persona number")
+    tf.flags.DEFINE_integer("max_persona_len", 15, "max persona length")
+    tf.flags.DEFINE_integer("max_word_length", 18, "max word length")
+    tf.flags.DEFINE_integer("embedding_dim", 400, "dimensionality of word embedding")
+    tf.flags.DEFINE_integer("rnn_size", 200, "number of RNN units")
+
+    # Training parameters
+    tf.flags.DEFINE_integer("batch_size", 40, "batch size (default: 128)")
+    tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularizaion lambda (default: 0)")
+    tf.flags.DEFINE_float("dropout_keep_prob", 0.8, "dropout keep probability (default: 1.0)")
+    tf.flags.DEFINE_integer("num_epochs", 10, "number of training epochs (default: 1000000)")
+    tf.flags.DEFINE_integer("evaluate_every", 500, "evaluate model on valid dataset after this many steps (default: 1000)")
+
+    # Misc Parameters
+    tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
+    tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+
+    FLAGS = tf.flags.FLAGS
+    FLAGS._parse_flags()
+    vocab = load_vocab(FLAGS.vocab_file)
+    print('vocabulary size: {}'.format(len(vocab)))
+    charVocab = load_char_vocab(FLAGS.char_vocab_file)
+    print('charVocab size: {}'.format(len(charVocab)))
+    train_dataset = load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+    print('train dataset size: {}'.format(len(train_dataset)))
+
+    print('building dataset...')
+    batches = batch_iter_s(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+                                        FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
+                                        charVocab, FLAGS.max_word_length, shuffle=False) # 20个不分开
+    print('shape:')
+    for batch in batches:
+        print('----------')
+        break
+    print('dataset builded...')
+
+    '''
+    vocabulary size: 20879
+    charVocab size: 69
+    train dataset size: 1314380
+    building dataset...
+    shape:
+    x_responses : (40, 20)
+    x_responses_len : (40,)
+    x_labels : (40,)
+    x_responses_char : (40, 20, 18)
+    x_responses_char_len : (40, 20)
+    ----------
+    dataset builded...
+    '''
 
 
