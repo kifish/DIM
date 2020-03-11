@@ -167,9 +167,9 @@ class DIM(object):
         responses_char_embedded = tf.reshape(responses_char_embedded, [-1, maxWordLength, char_dim])    # [batch_size*max_response_len, maxWordLength, char_dim]
         personas_char_embedded = tf.reshape(personas_char_embedded, [-1, maxWordLength, char_dim])      # [batch_size*max_persona_num*max_persona_len, maxWordLength, char_dim]
 
-        utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1", summarize=6)
+        personas_char_embedded = tf.Print(personas_char_embedded, [tf.shape(personas_char_embedded)], message="Here 1", summarize=6)
         # char embedding
-        # utterances_cnn_char_emb = cnn_layer(utterances_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=False) # [batch_size*max_utter_num*max_utter_len, emb]
+        utterances_cnn_char_emb = cnn_layer(utterances_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=False) # [batch_size*max_utter_num*max_utter_len, emb]
         # cnn_char_dim = utterances_cnn_char_emb.get_shape()[1].value
         utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1.1", summarize=6)
         # utterances_cnn_char_emb = tf.reshape(utterances_cnn_char_emb, [-1, max_utter_num, max_utter_len, cnn_char_dim])                                # [batch_size, max_utter_num, max_utter_len, emb]
@@ -177,7 +177,7 @@ class DIM(object):
         # responses_cnn_char_emb = cnn_layer(responses_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)    # [batch_size*max_response_len,  emb]
         # responses_cnn_char_emb = tf.reshape(responses_cnn_char_emb, [-1, max_response_len, cnn_char_dim])                            # [batch_size, max_response_len, emb]
         utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1.2", summarize=6)
-        # personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
+        personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
         # personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
                 
         # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
