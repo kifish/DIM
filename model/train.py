@@ -8,7 +8,7 @@ from collections import defaultdict
 from model import metrics
 from model import data_helpers
 from model.model_DIM import DIM
-
+from tqdm import tqdm
 
 # Files
 tf.flags.DEFINE_string("train_file", "", "path to train file")
@@ -232,7 +232,12 @@ with tf.Graph().as_default():
         batches = data_helpers.batch_iter(train_dataset, FLAGS.batch_size, FLAGS.num_epochs, FLAGS.max_utter_num, FLAGS.max_utter_len, \
                                           FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
                                           charVocab, FLAGS.max_word_length, shuffle=True)
+        print('dataset builded...')
+        step = 0
+        step_total = 65719 // FLAGS.batch_size * FLAGS.num_epochs
+        pbar = tqdm(total = step_total)
         for batch in batches:
+            step += 1
             x_utterances, x_utterances_len, x_response, x_response_len, \
                 x_utters_num, x_target, x_ids, \
                 x_u_char, x_u_char_len, x_r_char, x_r_char_len, \
@@ -246,4 +251,5 @@ with tf.Graph().as_default():
                     best_mrr = valid_mrr
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print("Saved model checkpoint to {}\n".format(path))
-   
+            pbar.update(1)
+        pbar.close()
