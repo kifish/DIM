@@ -147,9 +147,12 @@ class DIM(object):
             W = get_embeddings(vocab)
             utterances_embedded = tf.nn.embedding_lookup(W, self.utterances)  # [batch_size, max_utter_num, max_utter_len, word_dim]
             responses_embedded = tf.nn.embedding_lookup(W, self.responses)    # [batch_size, max_response_len, word_dim]
+            # fake data
+            responses_embedded2 = tf.tile(tf.expand_dims(responses_embedded,1),[1, max_response_num, 1, 1])
+            
             personas_embedded = tf.nn.embedding_lookup(W, self.personas)      # [batch_size, max_persona_num, max_persona_len, word_dim]
             print("original utterances_embedded: {}".format(utterances_embedded.get_shape()))
-            print("original responses_embedded: {}".format(responses_embedded.get_shape()))
+            print("original fake responses_embedded: {}".format(responses_embedded.get_shape()))
             print("original personas_embedded: {}".format(personas_embedded.get_shape()))
         
         with tf.name_scope('char_embedding'):
@@ -169,7 +172,7 @@ class DIM(object):
         # responses_char_embedded ：  [batch_size, max_response_len, maxWordLength, char_dim]
         # responses_char_embedded = tf.Print(responses_char_embedded, [tf.shape(responses_char_embedded)], message="Here 1.1.1.1", summarize=6)
         # 2020-03-11 16:01:52.577455: I tensorflow/core/kernels/logging_ops.cc:79] Here 1.1.1.1[40 20 18 69]
-        max_response_num = 20 # 20
+        #max_response_num : 20
         responses_char_embedded = tf.tile(tf.expand_dims(responses_char_embedded,1),[1, max_response_num, 1, 1, 1]) # fake data to avoid tf's stupid optimization
         print("responses_char_embedded 2: {}".format(responses_char_embedded.get_shape()))
 
@@ -182,7 +185,7 @@ class DIM(object):
         responses_char_embedded = tf.reshape(responses_char_embedded, [-1, maxWordLength, char_dim])    # [batch_size*max_response_len, maxWordLength, char_dim]
         print("responses_char_embedded 3: {}".format(responses_char_embedded.get_shape()))
         # important
-        responses_char_embedded = tf.Print(responses_char_embedded, [tf.shape(responses_char_embedded)], message="Here 1.1.1.2", summarize=6)
+        # responses_char_embedded = tf.Print(responses_char_embedded, [tf.shape(responses_char_embedded)], message="Here 1.1.1.2", summarize=6)
         # 2020-03-11 16:01:59.233857: I tensorflow/core/kernels/logging_ops.cc:79] Here 1.1.1.2[16000 18 69] # batch_size 40
         
 
@@ -203,27 +206,38 @@ class DIM(object):
 
 
         responses_cnn_char_emb = cnn_layer(responses_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)    # [batch_size*max_response_len,  emb]
-        responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-", summarize=6)
+        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-", summarize=6)
         responses_cnn_char_emb = tf.reshape(responses_cnn_char_emb, [-1,max_response_num,max_response_len, cnn_char_dim])                            # [batch_size, max_response_len, emb]
-        responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1", summarize=6)
+        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1", summarize=6)
 
         # fake
         # get real data
-        responses_cnn_char_emb = tf.gather(responses_cnn_char_emb, indices = 0 , axis=1) # all your need is pytorch
-        print("responses_cnn_char_emb : {}".format(responses_cnn_char_emb.get_shape()))
+        # responses_cnn_char_emb = tf.gather(responses_cnn_char_emb, indices = 0 , axis=1) # all your need is pytorch
+        # print("responses_cnn_char_emb : {}".format(responses_cnn_char_emb.get_shape()))
+        # 为了内存友好，在经过concat之后再tf.gather
+        # 因为tf.concat同样会触发内存分配的bug
         # responses_cnn_char_emb : (?, 20, 150)
         # # (batch_size,max_response_len,cnn_char_dim)
-        responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1-", summarize=6)
+        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1-", summarize=6)
         
         
         # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1.2", summarize=6)
         personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
         personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
                 
-        # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
-        # responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_len, emb]
-        # personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
-        # tf.concat 如果输入数据的shape 变化过大 同样会触发memory分配的bug
+        utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        
+        # bug--------------------------------------------
+        responses_embedded  = tf.concat(axis=-1, values=[responses_embedded2, responses_cnn_char_emb])     # [batch_size, max_response_len, emb]
+        # # fake data : [batch_size,max_response_num, max_response_len, emb]
+        # # tf.concat 如果输入数据的shape 变化过大 同样会触发memory分配的bug
+        responses_embedded = tf.gather(responses_embedded, indices = 0 , axis=1) # all your need is pytorch
+        # concat之后用gather同样会触发 memory bug
+        # ----------------------------------------------bug
+
+        personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
+       
+
         utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)
         responses_embedded = tf.nn.dropout(responses_embedded, keep_prob=self.dropout_keep_prob)
         personas_embedded = tf.nn.dropout(personas_embedded, keep_prob=self.dropout_keep_prob)

@@ -10,7 +10,9 @@ from model import metrics_s
 from model import data_helpers_s
 from model.model_DIM_s import DIM
 from tqdm import tqdm
-os.environ["TF_CUDNN_USE_AUTOTUNE"] = "0" # sometimes doesn't work
+# os.environ["TF_CUDNN_USE_AUTOTUNE"] = "0" # sometimes doesn't work
+# 这个环境变量并不是百分百有效，无效的情况下还降低了训练速度
+# 目前较好的解决办法就是控制数据shape尽量接近。不接近就fake出来。然后再取出真实的数据。
 
 # Files
 tf.flags.DEFINE_string("train_file", "", "path to train file")
