@@ -163,6 +163,9 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
             start_index = batch_num * batch_size
             end_index = min((batch_num + 1) * batch_size, data_size)
 
+            # 避免batch的shape 不一致
+            if (batch_num + 1) * batch_size > data_size:
+                continue
             x_utterances = []
             x_utterances_len = []
 
@@ -207,8 +210,14 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
                     new_responses_vec[i] = new_response_vec
                     new_responses_len[i] = rs_len[i]
                     break
-                x_responses.append(new_responses_vec[0])
-                x_responses_len.append(new_responses_len[0])
+                # fake data
+                tmp_x_response = []
+                tmp_x_response_len = []
+                for _ in range(20):
+                    tmp_x_response.append(new_responses_vec[0])
+                    tmp_x_response_len.append(new_responses_len[0])
+                x_responses.append(tmp_x_response)
+                x_responses_len.append(tmp_x_response_len)
 
                 x_labels.append(label)
 
@@ -233,8 +242,15 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
                     rsCharVec[i] = rCharVec
                     rsCharLen[i] = rCharLen
                     break
-                x_responses_char.append(rsCharVec[0])
-                x_responses_char_len.append(rsCharLen[0])
+                # fake data
+                tmp_response_char = []
+                tmp_responses_char_len = []
+                for _ in range(20):
+                    tmp_response_char.append(rsCharVec[0])
+                    tmp_responses_char_len.append(rsCharLen[0])
+                x_responses_char.append(tmp_response_char)
+                x_responses_char_len.append(tmp_responses_char_len)
+
 
                 # normalize ps_vec and ps_len
                 new_personas_vec = np.zeros((max_persona_num, max_persona_len), dtype='int32')
@@ -329,16 +345,13 @@ if __name__ == '__main__':
     charVocab size: 69
     train dataset size: 1314380
     building dataset...
-    shape:
-    x_responses : (40, 20)
-    x_responses_len : (40,)
-    x_labels : (40,)
-    x_responses_char : (40, 20, 18)
-    x_responses_char_len : (40, 20)
-    ----------
     dataset builded...
-
-
+    shape:
+    x_responses : (40, 20, 20)
+    x_responses_len : (40, 20)
+    x_labels : (40,)
+    x_responses_char : (40, 20, 20, 18)
+    x_responses_char_len : (40, 20, 20)
     # dim.r_charVec: x_r_char, 即 x_responses_char
     '''
 

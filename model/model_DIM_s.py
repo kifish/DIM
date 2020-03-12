@@ -1,4 +1,3 @@
-#encoding=utf8
 import tensorflow as tf
 import numpy as np
 
@@ -38,7 +37,7 @@ def load_word_embeddings(vocab, dim):
         #    embeddings[code] = np.random.uniform(-0.25, 0.25, dim) 
     return embeddings 
 
-# bilstm
+
 def lstm_layer(inputs, input_seq_len, rnn_size, dropout_keep_prob, scope, scope_reuse=False):
     with tf.variable_scope(scope, reuse=scope_reuse) as vs:
         fw_cell = tf.contrib.rnn.LSTMCell(rnn_size, forget_bias=1.0, state_is_tuple=True, reuse=scope_reuse)
@@ -52,62 +51,54 @@ def lstm_layer(inputs, input_seq_len, rnn_size, dropout_keep_prob, scope, scope_
         return rnn_outputs, rnn_states
 
 def cnn_layer(inputs, filter_sizes, num_filters, scope=None, scope_reuse=False):
-    # 如果inputs[0] 的差异较大，会触发底层实现奇怪的bug
-    # response char : [batch_size*max_response_len, maxWordLength, char_dim]
     with tf.variable_scope(scope, reuse=scope_reuse):
-        in_channels = inputs.get_shape()[2].value
-        # a = inputs.get_shape()[0].value
-        # b = inputs.get_shape()[1].value
-        # c = in_channels
-        # inputs = tf.Print(inputs, [inputs], message="Here 1.1.1 \
-        # shape : {} {} {}".format(a,b,c), summarize=6)
+        input_size = inputs.get_shape()[2].value
+
         outputs = []
-        for i, filter_size in enumerate(filter_sizes): # filter_sizes:[3,4,5]
+        for i, filter_size in enumerate(filter_sizes):
             with tf.variable_scope("conv_{}".format(i)):
-                w = tf.get_variable("w", [filter_size, in_channels, num_filters]) # [filter_width, in_channels, out_channels]
+                w = tf.get_variable("w", [filter_size, input_size, num_filters])
                 b = tf.get_variable("b", [num_filters])
             conv = tf.nn.conv1d(inputs, w, stride=1, padding="VALID") # [num_words, num_chars - filter_size, num_filters]
             h = tf.nn.relu(tf.nn.bias_add(conv, b)) # [num_words, num_chars - filter_size, num_filters]
             pooled = tf.reduce_max(h, 1) # [num_words, num_filters]
             outputs.append(pooled)
-        # inputs = tf.Print(inputs, [inputs], message="Here 1.1.2", summarize=6)s
     return tf.concat(outputs, 1) # [num_words, num_filters * len(filter_sizes)]
 
 
 def attended_response(similarity_matrix, contexts, flattened_utters_len, max_utter_len, max_utter_num):
-    # similarity_matrix:    [batch_size, max_response_len, max_utter_num*max_utter_len]
+    # similarity_matrix:    [batch_size, max_response_num, max_response_len, max_utter_num*max_utter_len]
     # contexts:             [batch_size, max_utter_num*max_utter_len, dim]
     # flattened_utters_len: [batch_size* max_utter_num, ]
+    max_response_num = similarity_matrix.get_shape()[1].value
+    
     # masked similarity_matrix
     mask_c = tf.sequence_mask(flattened_utters_len, max_utter_len, dtype=tf.float32)  # [batch_size*max_utter_num, max_utter_len]
     mask_c = tf.reshape(mask_c, [-1, max_utter_num*max_utter_len])                    # [batch_size, max_utter_num*max_utter_len]
     mask_c = tf.expand_dims(mask_c, 1)                                                # [batch_size, 1, max_utter_num*max_utter_len]
-    similarity_matrix = similarity_matrix * mask_c + -1e9 * (1-mask_c)                # [batch_size, max_response_len, max_utter_num*max_utter_len]
+    mask_c = tf.expand_dims(mask_c, 2)                                                # [batch_size, 1, 1, max_utter_num*max_utter_len]
+    similarity_matrix = similarity_matrix * mask_c + -1e9 * (1-mask_c)                # [batch_size, max_response_num, response_len, max_utter_num*max_utter_len]
 
-    attention_weight_for_c = tf.nn.softmax(similarity_matrix, dim=-1)                 # [batch_size, max_response_len, max_utter_num*max_utter_len]
-    contexts_tiled = contexts                                                         # [batch_size, max_utter_num*max_utter_len, dim]
-    attended_response = tf.matmul(attention_weight_for_c, contexts_tiled)             # [batch_size, response_len, dim]
-    # 加权表示context
-    # # [batch_size, response_len, dim]
+    attention_weight_for_c = tf.nn.softmax(similarity_matrix, dim=-1)                 # [batch_size, max_response_num, response_len, max_utter_num*max_utter_len]
+    contexts_tiled = tf.tile(tf.expand_dims(contexts, 1), [1, max_response_num, 1, 1])# [batch_size, max_response_num, max_utter_num*max_utter_len, dim]
+    attended_response = tf.matmul(attention_weight_for_c, contexts_tiled)             # [batch_size, max_response_num, response_len, dim]
+
     return attended_response
 
 def attended_context(similarity_matrix, responses, flattened_responses_len, max_response_len, max_response_num):
-    # similarity_matrix:       [batch_size, max_response_len, max_utter_num*max_utter_len]
-    # responses:               [batch_size, max_response_len, dim]
-    # flattened_responses_len: [batch_size, ]
+    # similarity_matrix:       [batch_size, max_response_num, max_response_len, max_utter_num*max_utter_len]
+    # responses:               [batch_size, max_response_num, max_response_len, dim]
+    # flattened_responses_len: [batch_size* max_response_num, ]
 
     # masked similarity_matrix
-    mask_r = tf.sequence_mask(flattened_responses_len, max_response_len, dtype=tf.float32)  # [batch_size, max_response_len]
-    mask_r = tf.reshape(mask_r, [-1,max_response_len])  # [batch_size, max_response_len]
-    mask_r = tf.expand_dims(mask_r, -1)                                    # [batch_size, max_response_len, 1]
-    similarity_matrix = similarity_matrix * mask_r + -1e9 * (1-mask_r)     # [batch_size, max_response_len, max_utter_num*max_utter_len]
+    mask_r = tf.sequence_mask(flattened_responses_len, max_response_len, dtype=tf.float32)  # [batch_size*max_response_num, max_response_len]
+    mask_r = tf.reshape(mask_r, [-1, max_response_num, max_response_len])  # [batch_size, max_response_num, max_response_len]
+    mask_r = tf.expand_dims(mask_r, -1)                                    # [batch_size, max_response_num, max_response_len, 1]
+    similarity_matrix = similarity_matrix * mask_r + -1e9 * (1-mask_r)     # [batch_size, max_response_num, max_response_len, max_utter_num*max_utter_len]
 
-    attention_weight_for_r = tf.nn.softmax(tf.transpose(similarity_matrix, perm=[0,2,1]), dim=-1)  # [batch_size, max_utter_num*max_utter_len, max_response_len]
-    attended_context = tf.matmul(attention_weight_for_r, responses)                                  # [batch_size,max_utter_num*max_utter_len, dim]
-    # attention_weight_for_r : [batch_size, max_utter_num*max_utter_len, max_response_len]
-    # responses : [batch_size, max_response_len, dim]
-    # attended_context: [batch_size, max_utter_num*max_utter_len, dim]
-    # 加权表示response
+    attention_weight_for_r = tf.nn.softmax(tf.transpose(similarity_matrix, perm=[0,1,3,2]), dim=-1)  # [batch_size, max_response_num, max_utter_num*max_utter_len, response_len]
+    attended_context = tf.matmul(attention_weight_for_r, responses)                                  # [batch_size, max_response_num, max_utter_num*max_utter_len, dim]
+    
     return attended_context
 
 
@@ -120,21 +111,23 @@ class DIM(object):
         self.utterances_len = tf.placeholder(tf.int32, [None, max_utter_num], name="utterances_len")
         self.utters_num = tf.placeholder(tf.int32, [None], name="utterances_num")
 
-        self.responses = tf.placeholder(tf.int32, [None,max_response_len], name="responses")
-        self.responses_len = tf.placeholder(tf.int32, [None,], name="responses_len")
+        self.responses = tf.placeholder(tf.int32, [None, max_response_num, max_response_len], name="responses")
+        self.responses_len = tf.placeholder(tf.int32, [None, max_response_num], name="responses_len")
 
         self.personas = tf.placeholder(tf.int32, [None, max_persona_num, max_persona_len], name="personas")
         self.personas_len = tf.placeholder(tf.int32, [None, max_persona_num], name="personas_len")
         self.personas_num = tf.placeholder(tf.int32, [None], name="personas_num")
         
-        self.target = tf.placeholder(tf.float32, [None], name="target") # 0,1 not 0-19;强制转换成float
+        # self.target = tf.placeholder(tf.float32, [None], name="target") # float not int ;float32 for sigmoid
+        self.target = tf.placeholder(tf.int64, [None], name="target") # int64 fot softmax
+
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
         self.u_charVec = tf.placeholder(tf.int32, [None, max_utter_num, max_utter_len, maxWordLength], name="utterances_char")
         self.u_charLen = tf.placeholder(tf.int32, [None, max_utter_num, max_utter_len], name="utterances_char_len")
 
-        self.r_charVec = tf.placeholder(tf.int32, [None, max_response_len, maxWordLength], name="responses_char")
-        self.r_charLen =  tf.placeholder(tf.int32, [None,max_response_len], name="responses_char_len")
+        self.r_charVec = tf.placeholder(tf.int32, [None, max_response_num, max_response_len, maxWordLength], name="responses_char")
+        self.r_charLen =  tf.placeholder(tf.int32, [None, max_response_num, max_response_len], name="responses_char_len")
 
         self.p_charVec = tf.placeholder(tf.int32, [None, max_persona_num, max_persona_len, maxWordLength], name="personas_char")
         self.p_charLen =  tf.placeholder(tf.int32, [None, max_persona_num, max_persona_len], name="personas_char_len")
@@ -146,106 +139,46 @@ class DIM(object):
         with tf.name_scope("embedding"):
             W = get_embeddings(vocab)
             utterances_embedded = tf.nn.embedding_lookup(W, self.utterances)  # [batch_size, max_utter_num, max_utter_len, word_dim]
-            responses_embedded = tf.nn.embedding_lookup(W, self.responses)    # [batch_size, max_response_len, word_dim]
-            # fake data
-            responses_embedded2 = tf.tile(tf.expand_dims(responses_embedded,1),[1, max_response_num, 1, 1])
-            
+            responses_embedded = tf.nn.embedding_lookup(W, self.responses)    # [batch_size, max_response_num, max_response_len, word_dim]
             personas_embedded = tf.nn.embedding_lookup(W, self.personas)      # [batch_size, max_persona_num, max_persona_len, word_dim]
             print("original utterances_embedded: {}".format(utterances_embedded.get_shape()))
-            print("original fake responses_embedded: {}".format(responses_embedded.get_shape()))
+            print("original responses_embedded: {}".format(responses_embedded.get_shape()))
             print("original personas_embedded: {}".format(personas_embedded.get_shape()))
         
         with tf.name_scope('char_embedding'):
             char_W = get_char_embedding(charVocab)
             utterances_char_embedded = tf.nn.embedding_lookup(char_W, self.u_charVec)  # [batch_size, max_utter_num, max_utter_len,  maxWordLength, char_dim]
-            responses_char_embedded = tf.nn.embedding_lookup(char_W, self.r_charVec)  
-             # [batch_size, max_response_len, maxWordLength, char_dim]
+            responses_char_embedded = tf.nn.embedding_lookup(char_W, self.r_charVec)   # [batch_size, max_response_num, max_response_len, maxWordLength, char_dim]
             personas_char_embedded = tf.nn.embedding_lookup(char_W, self.p_charVec)    # [batch_size, max_persona_num, max_persona_len, maxWordLength, char_dim]
             print("utterances_char_embedded: {}".format(utterances_char_embedded.get_shape()))
-            print("responses_char_embedded: {}".format(responses_char_embedded.get_shape())) # responses_char_embedded: (?, 20, 18, 69)
+            print("responses_char_embedded: {}".format(responses_char_embedded.get_shape()))
             print("personas_char_embedded: {}".format(personas_char_embedded.get_shape()))
 
         char_dim = utterances_char_embedded.get_shape()[-1].value
-        utterances_char_embedded = tf.reshape(utterances_char_embedded, [-1, maxWordLength, char_dim])  
-        # [batch_size*max_utter_num*max_utter_len, maxWordLength, char_dim]
-        
-        # responses_char_embedded ：  [batch_size, max_response_len, maxWordLength, char_dim]
-        # responses_char_embedded = tf.Print(responses_char_embedded, [tf.shape(responses_char_embedded)], message="Here 1.1.1.1", summarize=6)
-        # 2020-03-11 16:01:52.577455: I tensorflow/core/kernels/logging_ops.cc:79] Here 1.1.1.1[40 20 18 69]
-        #max_response_num : 20
-        responses_char_embedded = tf.tile(tf.expand_dims(responses_char_embedded,1),[1, max_response_num, 1, 1, 1]) # fake data to avoid tf's stupid optimization
-        print("responses_char_embedded 2: {}".format(responses_char_embedded.get_shape()))
-
-        '''
-        responses_char_embedded: (?, 20, 18, 69)
-        personas_char_embedded: (?, 5, 15, 18, 69)
-        responses_char_embedded 2: (?, 20, 20, 18, 69)
-        responses_char_embedded 3: (?, 18, 69)
-        '''
-        responses_char_embedded = tf.reshape(responses_char_embedded, [-1, maxWordLength, char_dim])    # [batch_size*max_response_len, maxWordLength, char_dim]
-        print("responses_char_embedded 3: {}".format(responses_char_embedded.get_shape()))
-        # important
-        # responses_char_embedded = tf.Print(responses_char_embedded, [tf.shape(responses_char_embedded)], message="Here 1.1.1.2", summarize=6)
-        # 2020-03-11 16:01:59.233857: I tensorflow/core/kernels/logging_ops.cc:79] Here 1.1.1.2[16000 18 69] # batch_size 40
-        
-
+        utterances_char_embedded = tf.reshape(utterances_char_embedded, [-1, maxWordLength, char_dim])  # [batch_size*max_utter_num*max_utter_len, maxWordLength, char_dim]
+        responses_char_embedded = tf.reshape(responses_char_embedded, [-1, maxWordLength, char_dim])    # [batch_size*max_response_num*max_response_len, maxWordLength, char_dim]
         personas_char_embedded = tf.reshape(personas_char_embedded, [-1, maxWordLength, char_dim])      # [batch_size*max_persona_num*max_persona_len, maxWordLength, char_dim]
-        # personas_char_embedded = tf.Print(personas_char_embedded, [tf.shape(personas_char_embedded)], message="Here 1", summarize=6)
-        
-        
+
         # char embedding
-        print("utterances_char_embedded : {}".format(utterances_char_embedded.get_shape()))
-        # utterances_char_embedded : (?, 18, 69)
-        # 40 * 15 * 20
-        utterances_cnn_char_emb = cnn_layer(utterances_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=False) 
-        # [batch_size*max_utter_num*max_utter_len, emb]
+        utterances_cnn_char_emb = cnn_layer(utterances_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=False) # [batch_size*max_utter_num*max_utter_len, emb]
         cnn_char_dim = utterances_cnn_char_emb.get_shape()[1].value
-        # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1.1", summarize=6)
         utterances_cnn_char_emb = tf.reshape(utterances_cnn_char_emb, [-1, max_utter_num, max_utter_len, cnn_char_dim])                                # [batch_size, max_utter_num, max_utter_len, emb]
 
+        responses_cnn_char_emb = cnn_layer(responses_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)    # [batch_size*max_response_num*max_response_len,  emb]
+        responses_cnn_char_emb = tf.reshape(responses_cnn_char_emb, [-1, max_response_num, max_response_len, cnn_char_dim])                            # [batch_size, max_response_num, max_response_len, emb]
 
-
-        responses_cnn_char_emb = cnn_layer(responses_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)    # [batch_size*max_response_len,  emb]
-        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-", summarize=6)
-        responses_cnn_char_emb = tf.reshape(responses_cnn_char_emb, [-1,max_response_num,max_response_len, cnn_char_dim])                            # [batch_size, max_response_len, emb]
-        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1", summarize=6)
-
-        # fake
-        # get real data
-        # responses_cnn_char_emb = tf.gather(responses_cnn_char_emb, indices = 0 , axis=1) # all your need is pytorch
-        # print("responses_cnn_char_emb : {}".format(responses_cnn_char_emb.get_shape()))
-        # 为了内存友好，在经过concat之后再tf.gather
-        # 因为tf.concat同样会触发内存分配的bug
-        # responses_cnn_char_emb : (?, 20, 150)
-        # # (batch_size,max_response_len,cnn_char_dim)
-        # responses_cnn_char_emb = tf.Print(responses_cnn_char_emb, [tf.shape(responses_cnn_char_emb)], message="Here 1-1-", summarize=6)
-        
-        
-        # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 1.2", summarize=6)
         personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
         personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
                 
-        utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
-        
-        # bug--------------------------------------------
-        responses_embedded  = tf.concat(axis=-1, values=[responses_embedded2, responses_cnn_char_emb])     # [batch_size, max_response_len, emb]
-        # # fake data : [batch_size,max_response_num, max_response_len, emb]
-        # # tf.concat 如果输入数据的shape 变化过大 同样会触发memory分配的bug
-        responses_embedded = tf.gather(responses_embedded, indices = 0 , axis=1) # all your need is pytorch
-        # concat之后用gather同样会触发 memory bug
-        # ----------------------------------------------bug
-
-        personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
-       
-
+        # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        # responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
+        # personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
         utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)
         responses_embedded = tf.nn.dropout(responses_embedded, keep_prob=self.dropout_keep_prob)
         personas_embedded = tf.nn.dropout(personas_embedded, keep_prob=self.dropout_keep_prob)
-        print("utterances_embedded: {}".format(utterances_embedded.get_shape())) # utterances_embedded: (?, 15, 20, 550)
-        print("responses_embedded: {}".format(responses_embedded.get_shape())) # responses_embedded: (?, 20, 550)
-        print("personas_embedded: {}".format(personas_embedded.get_shape())) # personas_embedded: (?, 5, 15, 550)
-
-        # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 2", summarize=6)
+        print("utterances_embedded: {}".format(utterances_embedded.get_shape()))
+        print("responses_embedded: {}".format(responses_embedded.get_shape()))
+        print("personas_embedded: {}".format(personas_embedded.get_shape()))
 
 
         # =============================== Encoding layer ===============================
@@ -254,201 +187,132 @@ class DIM(object):
             emb_dim = utterances_embedded.get_shape()[-1].value
             flattened_utterances_embedded = tf.reshape(utterances_embedded, [-1, max_utter_len, emb_dim])  # [batch_size*max_utter_num, max_utter_len, emb]
             flattened_utterances_len = tf.reshape(self.utterances_len, [-1])                               # [batch_size*max_utter_num, ]
-            flattened_responses_embedded = tf.reshape(responses_embedded, [-1, max_response_len, emb_dim]) # [batch_size, max_response_len, emb]
-            flattened_responses_len = tf.reshape(self.responses_len, [-1])                                 # [batch_size, ]
+            flattened_responses_embedded = tf.reshape(responses_embedded, [-1, max_response_len, emb_dim]) # [batch_size*max_response_num, max_response_len, emb]
+            flattened_responses_len = tf.reshape(self.responses_len, [-1])                                 # [batch_size*max_response_num, ]
             flattened_personas_embedded = tf.reshape(personas_embedded, [-1, max_persona_len, emb_dim])    # [batch_size*max_persona_num, max_persona_len, emb]
             flattened_personas_len = tf.reshape(self.personas_len, [-1])                                   # [batch_size*max_persona_num, ]
 
-            # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 3", summarize=6)
             rnn_scope_name = "bidirectional_rnn"
             u_rnn_output, u_rnn_states = lstm_layer(flattened_utterances_embedded, flattened_utterances_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=False)
             utterances_output = tf.concat(axis=2, values=u_rnn_output)  # [batch_size*max_utter_num, max_utter_len, rnn_size*2]
             r_rnn_output, r_rnn_states = lstm_layer(flattened_responses_embedded, flattened_responses_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=True)
-            responses_output = tf.concat(axis=2, values=r_rnn_output)   # [batch_size, max_response_len, rnn_size*2]
-            # axis = 2 把前向和后向的输出拼起来
+            responses_output = tf.concat(axis=2, values=r_rnn_output)   # [batch_size*max_response_num, max_response_len, rnn_size*2]
             p_rnn_output, p_rnn_states = lstm_layer(flattened_personas_embedded, flattened_personas_len, rnn_size, self.dropout_keep_prob, rnn_scope_name, scope_reuse=True)
             personas_output = tf.concat(axis=2, values=p_rnn_output)    # [batch_size*max_persona_num, max_persona_len, rnn_size*2]
             print("encoded utterances : {}".format(utterances_output.shape))
             print("encoded responses : {}".format(responses_output.shape))
             print("encoded personas : {}".format(personas_output.shape))
 
-            # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 4", summarize=6)
 
         # =============================== Matching layer ===============================
         with tf.variable_scope("matching_layer") as vs:
 
-            output_dim = utterances_output.get_shape()[-1].value #  rnn_size*2
+            output_dim = utterances_output.get_shape()[-1].value
             utterances_output = tf.reshape(utterances_output, [-1, max_utter_num*max_utter_len, output_dim])      # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-            # utterances_output_tiled = tf.tile(tf.expand_dims(utterances_output, 1), [1, max_response_num, 1, 1])  # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-            utterances_output_tiled = utterances_output # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-            responses_output = tf.reshape(responses_output, [-1,max_response_len, output_dim]) # [batch_size, max_response_len, rnn_size*2]
+            utterances_output_tiled = tf.tile(tf.expand_dims(utterances_output, 1), [1, max_response_num, 1, 1])  # [batch_size, max_response_num, max_utter_num*max_utter_len, rnn_size*2]
+            responses_output = tf.reshape(responses_output, [-1, max_response_num, max_response_len, output_dim]) # [batch_size, max_response_num, max_response_len, rnn_size*2]
             personas_output = tf.reshape(personas_output, [-1, max_persona_num*max_persona_len, output_dim])      # [batch_size, max_persona_num*max_persona_len, rnn_size*2]
-            #personas_output_tiled = tf.tile(tf.expand_dims(personas_output, 1), [1, max_response_num, 1, 1])     
-            personas_output_tiled = personas_output  # [batch_size, max_persona_num*max_persona_len, rnn_size*2]
+            personas_output_tiled = tf.tile(tf.expand_dims(personas_output, 1), [1, max_response_num, 1, 1])      # [batch_size, max_response_num, max_persona_num*max_persona_len, rnn_size*2]
+            
             # 1. cross-attention between context and response
-            similarity_UR = tf.matmul(responses_output,  # [batch_size, max_response_len, rnn_size*2]
-                                      tf.transpose(utterances_output_tiled, perm=[0,2,1]), name='similarity_matrix_UR') # perm: # [batch_size,max_utter_num*max_utter_len, rnn_size*2] -> [batch_size, rnn_size*2, max_utter_num*max_utter_len]
-            # similarity_UR: [batch_size, max_response_len, max_utter_num*max_utter_len]
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 5", summarize=6)
-            attended_utterances_output_ur = attended_context(similarity_UR, 
-                                                            responses_output, 
-                                                            flattened_responses_len,
-                                                            max_response_len, 
-                                                            max_response_num) 
-             # attended_utterances_output_ur : [batch_size, max_utter_num*max_utter_len, dim]
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 6", summarize=6)
-            attended_responses_output_ur = attended_response(similarity_UR, 
-                                                            utterances_output, 
-                                                            flattened_utterances_len, 
-                                                            max_utter_len, 
-                                                            max_utter_num)       
-            # attended_responses_output_ur : [batch_size, response_len, dim]
-            m_u_ur = tf.concat(axis=-1, 
-                                values = [utterances_output_tiled, # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-                                        attended_utterances_output_ur, #  [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-                                        tf.multiply(utterances_output_tiled, attended_utterances_output_ur), # 点乘
-                                        utterances_output_tiled-attended_utterances_output_ur # [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-                                        ]
-                             )  
-            # [batch_size, max_utter_num*max_utter_len, rnn_size*8]
-            m_r_ur = tf.concat(axis=-1, 
-                                values = [responses_output, # [batch_size, max_response_len, rnn_size*2]
-                                        attended_responses_output_ur, # attended_responses_output_ur : [batch_size, response_len, rnn_size*2]
-                                        tf.multiply(responses_output, attended_responses_output_ur),
-                                      responses_output-attended_responses_output_ur
-                                      ]
-                            )   
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 7", summarize=6)
-            # [batch_size, response_len, rnn_size*8]                     
-            concat_dim = m_u_ur.get_shape()[-1].value # rnn_size*8
-            m_u_ur = tf.reshape(m_u_ur, [-1, max_utter_len, concat_dim])    # [batch_size*max_utter_num, max_utter_len, dim]
-            m_r_ur = tf.reshape(m_r_ur, [-1, max_response_len, concat_dim]) # [batch_size, max_response_len, dim]
+            similarity_UR = tf.matmul(responses_output,  # [batch_size, max_response_num, response_len, max_utter_num*max_utter_len]
+                                      tf.transpose(utterances_output_tiled, perm=[0,1,3,2]), name='similarity_matrix_UR')
+            attended_utterances_output_ur = attended_context(similarity_UR, responses_output, flattened_responses_len, max_response_len, max_response_num)  # [batch_size, max_response_num, max_utter_num*max_utter_len, dim]
+            attended_responses_output_ur = attended_response(similarity_UR, utterances_output, flattened_utterances_len, max_utter_len, max_utter_num)       # [batch_size, max_response_num, response_len, dim]
+            
+            m_u_ur = tf.concat(axis=-1, values=[utterances_output_tiled, attended_utterances_output_ur, tf.multiply(utterances_output_tiled, attended_utterances_output_ur), utterances_output_tiled-attended_utterances_output_ur])  # [batch_size, max_response_num, max_utter_num*max_utter_len, dim]
+            m_r_ur = tf.concat(axis=-1, values=[responses_output, attended_responses_output_ur, tf.multiply(responses_output, attended_responses_output_ur), responses_output-attended_responses_output_ur])                         # [batch_size, max_response_num, response_len, dim]
+            concat_dim = m_u_ur.get_shape()[-1].value
+            m_u_ur = tf.reshape(m_u_ur, [-1, max_utter_len, concat_dim])    # [batch_size*max_response_num*max_utter_num, max_utter_len, dim]
+            m_r_ur = tf.reshape(m_r_ur, [-1, max_response_len, concat_dim]) # [batch_size*max_response_num, max_response_len, dim]
             
             rnn_scope_cross = 'bidirectional_rnn_cross'
             rnn_size_layer_2 = rnn_size
-            # self.utterances_len [batch_size, max_utter_num]
-            tiled_flattened_utterances_len = tf.reshape(self.utterances_len, [-1, ]) 
-            # tiled_flattened_utterances_len [batch_size*max_utter_num, ]
-            # new birnn
+            tiled_flattened_utterances_len = tf.reshape(tf.tile(tf.expand_dims(self.utterances_len, 1), [1, max_response_num, 1]), [-1, ]) # [batch_size*max_response_num*max_utter_num, ]
             u_ur_rnn_output, u_ur_rnn_state = lstm_layer(m_u_ur, tiled_flattened_utterances_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=False)
             r_ur_rnn_output, r_ur_rnn_state = lstm_layer(m_r_ur, flattened_responses_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
-            utterances_output_cross_ur = tf.concat(axis=-1, values=u_ur_rnn_output)   # [batch_size*max_utter_num, max_utter_len, rnn_size*2]
-            responses_output_cross_ur = tf.concat(axis=-1, values=r_ur_rnn_output)    # [batch_size, max_response_len, rnn_size*2]
+            utterances_output_cross_ur = tf.concat(axis=-1, values=u_ur_rnn_output)   # [batch_size*max_response_num*max_utter_num, max_utter_len, rnn_size*2]
+            responses_output_cross_ur = tf.concat(axis=-1, values=r_ur_rnn_output)    # [batch_size*max_response_num, max_response_len, rnn_size*2]
             print("establish cross-attention between context and response")
 
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 8", summarize=6)
 
             # 2. cross-attention between persona and response without decay
-            similarity_PR = tf.matmul(responses_output, # [batch_size, max_response_len, rnn_size*2]
-                                      tf.transpose(personas_output_tiled, perm=[0,2,1]),  # [batch_size, max_persona_num*max_persona_len, rnn_size*2]
-                                      name='similarity_matrix_PR')
-             # [batch_size, max_response_len, rnn_size*2]
-            attended_personas_output_pr = attended_context(similarity_PR, 
-                                        responses_output, 
-                                        flattened_responses_len, 
-                                        max_response_len,
-                                        max_response_num) 
-            #  [batch_size, max_utter_num*max_utter_len, rnn_size*2]
-            attended_responses_output_pr = attended_response(similarity_PR, 
-                                        personas_output,
-                                        flattened_personas_len,
-                                        max_persona_len,
-                                        max_persona_num)  
-            # [batch_size, response_len, rnn_size*2]
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 9", summarize=6)
-            m_p_pr = tf.concat(axis=-1, 
-                                values=[personas_output_tiled,  # [batch_size, max_persona_num*max_persona_len, rnn_size*2]
-                                attended_personas_output_pr,
-                                tf.multiply(personas_output_tiled, attended_personas_output_pr), 
-                                personas_output_tiled-attended_personas_output_pr]) 
-            # [batch_size, max_persona_num*max_persona_len, rnn_size*8]
-            m_r_pr = tf.concat(axis=-1, 
-                            values=[responses_output,  # 冗余结构
-                            attended_responses_output_pr, 
-                            tf.multiply(responses_output, attended_responses_output_pr),
-                             responses_output-attended_responses_output_pr])     
-            # [batch_size, response_len, rnn_size*8]
-            m_p_pr = tf.reshape(m_p_pr, [-1, max_persona_len, concat_dim])  
-            # [batch_size*max_persona_num, max_persona_len, dim]
-            m_r_pr = tf.reshape(m_r_pr, [-1, max_response_len, concat_dim]) 
-            # [batch_size, max_response_len, dim]
+            similarity_PR = tf.matmul(responses_output,  # [batch_size, max_response_num, response_len, max_persona_num*max_persona_len]
+                                      tf.transpose(personas_output_tiled, perm=[0,1,3,2]), name='similarity_matrix_PR')
+            attended_personas_output_pr = attended_context(similarity_PR, responses_output, flattened_responses_len, max_response_len, max_response_num) # [batch_size, max_response_num, max_persona_num*max_persona_len, dim]
+            attended_responses_output_pr = attended_response(similarity_PR, personas_output, flattened_personas_len, max_persona_len, max_persona_num)   # [batch_size, max_response_num, response_len, dim]
+
+            m_p_pr = tf.concat(axis=-1, values=[personas_output_tiled, attended_personas_output_pr, tf.multiply(personas_output_tiled, attended_personas_output_pr), personas_output_tiled-attended_personas_output_pr])  # [batch_size, max_response_num, max_persona_num*max_persona_len, dim]
+            m_r_pr = tf.concat(axis=-1, values=[responses_output, attended_responses_output_pr, tf.multiply(responses_output, attended_responses_output_pr), responses_output-attended_responses_output_pr])           # [batch_size, max_response_num, response_len, dim]
+            m_p_pr = tf.reshape(m_p_pr, [-1, max_persona_len, concat_dim])   # [batch_size*max_response_num*max_persona_num, max_persona_len, dim]
+            m_r_pr = tf.reshape(m_r_pr, [-1, max_response_len, concat_dim])  # [batch_size*max_response_num, max_response_len, dim]
             
-            tiled_flattened_personas_len = tf.reshape(self.personas_len, [-1, ]) 
-            # [batch_size*max_persona_num, ]
-            # old birnn
+            tiled_flattened_personas_len = tf.reshape(tf.tile(tf.expand_dims(self.personas_len, 1), [1, max_response_num, 1]), [-1, ]) # [batch_size*max_response_num*max_persona_num, ]
             p_pr_rnn_output, p_pr_rnn_state = lstm_layer(m_p_pr, tiled_flattened_personas_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             r_pr_rnn_output, r_pr_rnn_state = lstm_layer(m_r_pr, flattened_responses_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
-            personas_output_cross_pr = tf.concat(axis=-1, values=p_pr_rnn_output)   # [batch_size*max_persona_num, max_persona_len, rnn_size*2]
-            responses_output_cross_pr = tf.concat(axis=-1, values=r_pr_rnn_output)  # [batch_size, max_response_len, rnn_size*2]
+            personas_output_cross_pr = tf.concat(axis=-1, values=p_pr_rnn_output)   # [batch_size*max_response_num*max_persona_num, max_persona_len, rnn_size*2]
+            responses_output_cross_pr = tf.concat(axis=-1, values=r_pr_rnn_output)  # [batch_size*max_response_num, max_response_len, rnn_size*2]
             print("establish cross-attention between persona and response")
-            # utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 10", summarize=6)
+
 
         # =============================== Aggregation layer ===============================
         with tf.variable_scope("aggregation_layer") as vs:
             # aggregate utterance across utterance_len
-            # utterances_output_cross_ur: [batch_size*max_utter_num, max_utter_len, rnn_size*2]
-            final_utterances_max = tf.reduce_max(utterances_output_cross_ur, axis=1) # [batch_size*max_utter_num, rnn_size*2]
-            final_utterances_state = tf.concat(axis=1, values=[u_ur_rnn_state[0].h, u_ur_rnn_state[1].h]) # [batch_size*max_utter_num, rnn_size*2]
-            final_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])  # [batch_size*max_utter_num, 4*rnn_size]
+            final_utterances_max = tf.reduce_max(utterances_output_cross_ur, axis=1)
+            final_utterances_state = tf.concat(axis=1, values=[u_ur_rnn_state[0].h, u_ur_rnn_state[1].h])
+            final_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])  # [batch_size*max_response_num*max_utter_num, 4*rnn_size]
 
-            # aggregate utterance across utterance_num #context
-            final_utterances = tf.reshape(final_utterances, [-1, max_utter_num, output_dim*2])   # [batch_size, max_utter_num, 4*rnn_size]
-            tiled_utters_num = tf.reshape(self.utters_num, [-1, ])  # [batch_size, ]
+            # aggregate utterance across utterance_num
+            final_utterances = tf.reshape(final_utterances, [-1, max_utter_num, output_dim*2])   # [batch_size*max_response_num, max_utter_num, 4*rnn_size]
+            tiled_utters_num = tf.reshape(tf.tile(tf.expand_dims(self.utters_num, 1), [1, max_response_num]), [-1, ])  # [batch_size*max_response_num, ]
             rnn_scope_aggre = "bidirectional_rnn_aggregation"
-            # new birnn
             final_utterances_output, final_utterances_state = lstm_layer(final_utterances, tiled_utters_num, rnn_size, self.dropout_keep_prob, rnn_scope_aggre, scope_reuse=False)
-            final_utterances_output = tf.concat(axis=2, values=final_utterances_output)  # [batch_size, max_utter_num, 2*rnn_size]
-            final_utterances_max = tf.reduce_max(final_utterances_output, axis=1)    # [batch_size, 2*rnn_size]
-            final_utterances_state = tf.concat(axis=1, values=[final_utterances_state[0].h, final_utterances_state[1].h])  # [batch_size, 2*rnn_size]
-            aggregated_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])               # [batch_size, 4*rnn_size]
+            final_utterances_output = tf.concat(axis=2, values=final_utterances_output)  # [batch_size*max_response_num, max_utter_num, 2*rnn_size]
+            final_utterances_max = tf.reduce_max(final_utterances_output, axis=1)                                          # [batch_size*max_response_num, 2*rnn_size]
+            final_utterances_state = tf.concat(axis=1, values=[final_utterances_state[0].h, final_utterances_state[1].h])  # [batch_size*max_response_num, 2*rnn_size]
+            aggregated_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])               # [batch_size*max_response_num, 4*rnn_size]
 
             # aggregate response across response_len
-            # responses_output_cross_ur  # [batch_size, max_response_len, rnn_size*2]
-            final_responses_max = tf.reduce_max(responses_output_cross_ur, axis=1)                           # [batch_size, 2*rnn_size]
-            final_responses_state = tf.concat(axis=1, values=[r_ur_rnn_state[0].h, r_ur_rnn_state[1].h])     # [batch_size, 2*rnn_size]
-            aggregated_responses_ur = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) # [batch_size, 4*rnn_size]
+            final_responses_max = tf.reduce_max(responses_output_cross_ur, axis=1)                           # [batch_size*max_response_num, 2*rnn_size]
+            final_responses_state = tf.concat(axis=1, values=[r_ur_rnn_state[0].h, r_ur_rnn_state[1].h])     # [batch_size*max_response_num, 2*rnn_size]
+            aggregated_responses_ur = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) # [batch_size*max_response_num, 4*rnn_size]
             print("establish RNN aggregation on context and response")
 
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 11", summarize=6)
 
             # aggregate persona across persona_len
-            final_personas_max = tf.reduce_max(personas_output_cross_pr, axis=1)                        # [batch_size*max_persona_num, 2*rnn_size]
-            final_personas_state = tf.concat(axis=1, values=[p_pr_rnn_state[0].h, p_pr_rnn_state[1].h]) # [batch_size*max_persona_num, 2*rnn_size]
-            final_personas = tf.concat(axis=1, values=[final_personas_max, final_personas_state])       # [batch_size*max_persona_num, 4*rnn_size]
+            final_personas_max = tf.reduce_max(personas_output_cross_pr, axis=1)                        # [batch_size*max_response_num*max_persona_num, 2*rnn_size]
+            final_personas_state = tf.concat(axis=1, values=[p_pr_rnn_state[0].h, p_pr_rnn_state[1].h]) # [batch_size*max_response_num*max_persona_num, 2*rnn_size]
+            final_personas = tf.concat(axis=1, values=[final_personas_max, final_personas_state])       # [batch_size*max_response_num*max_persona_num, 4*rnn_size]
 
-            final_personas = tf.reshape(final_personas, [-1, max_persona_num, output_dim*2])   # [batch_size, max_persona_num, 4*rnn_size]
+            # aggregate persona across persona_num
+            # 1. RNN aggregation
+            # final_personas = tf.reshape(final_personas, [-1, max_persona_num, output_dim*2])   # [batch_size*max_response_num, max_persona_num, 4*rnn_size]
+            # tiled_personas_num = tf.reshape(tf.tile(tf.expand_dims(self.personas_num, 1), [1, max_response_num]), [-1, ])  # [batch_size*max_response_num, ]
+            # final_personas_output, final_personas_state = lstm_layer(final_personas, tiled_personas_num, rnn_size, self.dropout_keep_prob, rnn_scope_aggre, scope_reuse=True)
+            # final_personas_output = tf.concat(axis=2, values=final_personas_output)  # [batch_size*max_response_num, max_persona_num, 2*rnn_size]
+            # final_personas_max = tf.reduce_max(final_personas_output, axis=1)                                        # [batch_size*max_response_num, 2*rnn_size]
+            # final_personas_state = tf.concat(axis=1, values=[final_personas_state[0].h, final_personas_state[1].h])  # [batch_size*max_response_num, 2*rnn_size]
+            # aggregated_personas = tf.concat(axis=1, values=[final_personas_max, final_personas_state])               # [batch_size*max_response_num, 4*rnn_size]
+            # print("establish RNN aggregation on persona")
+            # 2. ATT aggregation
+            final_personas = tf.reshape(final_personas, [-1, max_persona_num, output_dim*2])                               # [batch_size*max_response_num, max_persona_num, 4*rnn_size]
             pers_w = tf.get_variable("pers_w", [output_dim*2, 1], initializer=tf.contrib.layers.xavier_initializer())
             pers_b = tf.get_variable("pers_b", shape=[1, ], initializer=tf.zeros_initializer())
-            # final_personas : [batch_size, max_persona_num, 4*rnn_size]
-            pers_weights = tf.nn.relu(tf.einsum('bij,jk->bik', final_personas, pers_w) + pers_b)  # attention; different from context; select doc
-             # [batch_size,max_persona_num, 1]
-            tiled_personas_num = tf.reshape(self.personas_num, [-1, ])  
-            # [batch_size, ]
-            mask_p = tf.expand_dims(tf.sequence_mask(tiled_personas_num, max_persona_num, dtype=tf.float32), -1)   
-            # [batch_size, max_persona_num, 1]
-            pers_weights = pers_weights * mask_p + -1e9 * (1-mask_p)   # [batch_size, max_persona_num, 1]
-            pers_weights = tf.nn.softmax(pers_weights, dim=1)  # [batch_size, max_persona_num, 1]
-            aggregated_personas = tf.matmul(tf.transpose(pers_weights, [0, 2, 1]), final_personas) # final_personas:[batch_size, max_persona_num, 4*rnn_size]
-            # [batch_size, 1, 4*rnn_size]
-            aggregated_personas = tf.squeeze(aggregated_personas, [1])   # [batch_size, 4*rnn_size]
+            pers_weights = tf.nn.relu(tf.einsum('aij,jk->aik', final_personas, pers_w) + pers_b)                           # [batch_size*max_response_num, max_persona_num, 1]
+            tiled_personas_num = tf.reshape(tf.tile(tf.expand_dims(self.personas_num, 1), [1, max_response_num]), [-1, ])  # [batch_size*max_response_num, ]
+            mask_p = tf.expand_dims(tf.sequence_mask(tiled_personas_num, max_persona_num, dtype=tf.float32), -1)           # [batch_size*max_response_num, max_persona_num, 1]
+            pers_weights = pers_weights * mask_p + -1e9 * (1-mask_p)                                                       # [batch_size*max_response_num, max_persona_num, 1]
+            pers_weights = tf.nn.softmax(pers_weights, dim=1)
+            aggregated_personas = tf.matmul(tf.transpose(pers_weights, [0, 2, 1]), final_personas)  # [batch_size*max_response_num, 1, 4*rnn_size]
+            aggregated_personas = tf.squeeze(aggregated_personas, [1])                              # [batch_size*max_response_num, 4*rnn_size]
 
             # aggregate response across response_len
-            #  responses_output_cross_pr: [batch_size, max_response_len, rnn_size*2]
-            final_responses_max = tf.reduce_max(responses_output_cross_pr, axis=1)     
-            # [batch_size, 2*rnn_size]
-            final_responses_state = tf.concat(axis=1, values=[r_pr_rnn_state[0].h, r_pr_rnn_state[1].h])    
-             # [batch_size, 2*rnn_size]
-            aggregated_responses_pr = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) 
-            # [batch_size, 4*rnn_size]
+            final_responses_max = tf.reduce_max(responses_output_cross_pr, axis=1)                           # [batch_size*max_response_num, 2*rnn_size]
+            final_responses_state = tf.concat(axis=1, values=[r_pr_rnn_state[0].h, r_pr_rnn_state[1].h])     # [batch_size*max_response_num, 2*rnn_size]
+            aggregated_responses_pr = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) # [batch_size*max_response_num, 4*rnn_size]
             print("establish ATT aggregation on persona and response")
 
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 12", summarize=6)
-            joined_feature =  tf.concat(axis=1, 
-                values=[aggregated_utterances,
-                 aggregated_responses_ur,
-                  aggregated_personas,
-                   aggregated_responses_pr])  
-            # [batch_size, 16*rnn_size(3200)]
+            joined_feature =  tf.concat(axis=1, values=[aggregated_utterances, aggregated_responses_ur, aggregated_personas, aggregated_responses_pr])  # [batch_size*max_response_num, 16*rnn_size(3200)]
             print("joined feature: {}".format(joined_feature.get_shape()))
             
 
@@ -459,33 +323,40 @@ class DIM(object):
             regularizer = tf.contrib.layers.l2_regularizer(l2_reg_lambda)
             #regularizer = None
             # dropout On MLP
-            joined_feature = tf.nn.dropout(joined_feature, keep_prob=self.dropout_keep_prob) # dropout
+            joined_feature = tf.nn.dropout(joined_feature, keep_prob=self.dropout_keep_prob)
             full_out = tf.contrib.layers.fully_connected(joined_feature, hidden_output_size,
                                                             activation_fn=tf.nn.relu,
                                                             reuse=False,
                                                             trainable=True,
-                                                            scope="projected_layer") 
-            # [batch_size, hidden_output_size(256)]
+                                                            scope="projected_layer") # [batch_size*max_response_num, hidden_output_size(256)]
             full_out = tf.nn.dropout(full_out, keep_prob=self.dropout_keep_prob)
+
             last_weight_dim = full_out.get_shape()[1].value
-            print("last_weight_dim: {}".format(last_weight_dim)) # 256
+            print("last_weight_dim: {}".format(last_weight_dim))
             bias = tf.Variable(tf.constant(0.1, shape=[1]), name="bias")
             s_w = tf.get_variable("s_w", shape=[last_weight_dim, 1], initializer=tf.contrib.layers.xavier_initializer())
-            logits = tf.reshape(tf.matmul(full_out, s_w) + bias, [-1,])   # [batch_size,]
+            logits = tf.reshape(tf.matmul(full_out, s_w) + bias, [-1, max_response_num])   # [batch_size, max_response_num]
+            # logits = tf.gather(logits,indices=0,axis=1)  # [batch_size]
             print("logits: {}".format(logits.get_shape()))
-            utterances_char_embedded = tf.Print(utterances_char_embedded, [utterances_char_embedded], message="Here 13", summarize=6)
-            self.probs = tf.nn.sigmoid(logits, name="prob")  # [batch_size, ]
+            
+            # self.probs = tf.nn.sigmoid(logits, name="prob")  # [batch_size, ]
+            # losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=self.target) # target:  [batch_size, ] 0 or 1
+            
+            self.probs = tf.nn.softmax(logits, name="prob")  # [batch_size, max_response_num]
+            losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
 
-            losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=self.target) # target:  [batch_size, ] 0 or 1
+
             self.mean_loss = tf.reduce_mean(losses, name="mean_loss") + l2_reg_lambda * l2_loss + sum(
                                                               tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
 
         with tf.name_scope("accuracy"):
+            correct_prediction = tf.equal(tf.argmax(self.probs, 1), self.target)
+            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
+
             # x = tf.constant([0.9, 2.5, 2.3, 1.5, -4.5])
             # tf.round(x) [ 1.0, 2.0, 2.0, 2.0, -4.0 ]
             # preds = tf.round(self.probs)
             # or
-            preds = tf.cast((self.probs > 0.5), tf.float32)
-            correct_prediction = tf.equal(preds, self.target)
-            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
-
+            # preds = tf.cast((self.probs > 0.5), tf.float32)
+            # correct_prediction = tf.equal(preds, self.target)
+            # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")

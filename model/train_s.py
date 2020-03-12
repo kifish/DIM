@@ -164,18 +164,19 @@ with tf.Graph().as_default():
               dim.personas_num: x_personas_num
             }
 
-            _, step, loss= sess.run(
-                [train_op, global_step, dim.mean_loss],
-                feed_dict)
-
-            # _, step, loss, accuracy, predicted_prob = sess.run(
-            #     [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+            # _, step, loss= sess.run(
+            #     [train_op, global_step, dim.mean_loss],
             #     feed_dict)
 
-            # if step % 100 == 0:
-            #     time_str = datetime.datetime.now().isoformat()
-            #     print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
-            #train_summary_writer.add_summary(summaries, step)
+            _, step, loss, accuracy, predicted_prob = sess.run(
+                [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+                feed_dict)
+
+            if step % 100 == 0:
+                time_str = datetime.datetime.now().isoformat()
+                print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+                
+            # train_summary_writer.add_summary(summaries, step)
 
 
         def dev_step():

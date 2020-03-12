@@ -31,8 +31,7 @@ embedding_dim=400
 rnn_size=200
 
 batch_size=16 # not 32/40/64 !!! memory leak;eat up to 100+GB; 16 ok ! nothing happens
-# 40 : os.environ["TF_CUDNN_USE_AUTOTUNE"] = "0" # Do not touch!
-# 事实上40和64来说设置了这个变量也无效！
+
 lambda=0
 dropout_keep_prob=0.8
 num_epochs=10
