@@ -38,7 +38,7 @@ num_epochs=10
 evaluate_every=500
 
 PKG_DIR=${parentdir}
-
+# run in p100 but boom in v100 !
 PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/model/train_s.py \
                 --train_file $train_file \
                 --valid_file $valid_file \

@@ -353,7 +353,9 @@ class DIM(object):
             bias = tf.Variable(tf.constant(0.1, shape=[1]), name="bias")
             s_w = tf.get_variable("s_w", shape=[last_weight_dim, 1], initializer=tf.contrib.layers.xavier_initializer())
             logits = tf.reshape(tf.matmul(full_out, s_w) + bias, [-1, max_response_num])   # [batch_size, max_response_num]
-            self.fake_probs = tf.nn.softmax(logits, name="fake_probs") # [batch_size, max_response_num]
+            
+            
+            # self.fake_probs = tf.nn.softmax(logits, name="fake_probs") # [batch_size, max_response_num]
             # self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.cast(self.target,tf.int64))
             # self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
 
@@ -366,6 +368,7 @@ class DIM(object):
                                                               tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
 
         with tf.name_scope("accuracy"):
+            # fake
             # correct_prediction = tf.equal(tf.argmax(self.fake_probs, 1), self.target)
             # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
 
