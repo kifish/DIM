@@ -10,6 +10,7 @@ from model import metrics_s
 from model import data_helpers_s
 from model.model_DIM_s import DIM
 from tqdm import tqdm
+os.environ["TF_CUDNN_USE_AUTOTUNE"] = "0" # sometimes doesn't work
 
 # Files
 tf.flags.DEFINE_string("train_file", "", "path to train file")
@@ -56,6 +57,7 @@ charVocab = data_helpers_s.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
 # for debug
+# FLAGS.train_file
 train_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('train dataset size: {}'.format(len(train_dataset)))
 valid_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
@@ -254,6 +256,5 @@ with tf.Graph().as_default():
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)
                     print("Saved model checkpoint to {}\n".format(path))
             pbar.update(1)
-            break
         
         pbar.close()

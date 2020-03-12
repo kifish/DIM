@@ -260,11 +260,12 @@ def batch_iter_s(data, batch_size, num_epochs, max_utter_num, max_utter_len, max
 
 
             # debug 
-            print('x_responses : {}'.format(np.array(x_responses).shape))
-            print('x_responses_len : {}'.format(np.array(x_responses_len).shape))
-            print('x_labels : {}'.format(np.array(x_labels).shape))
-            print('x_responses_char : {}'.format(np.array(x_responses_char).shape))
-            print('x_responses_char_len : {}'.format(np.array(x_responses_char_len).shape))
+            # print('x_responses : {}'.format(np.array(x_responses).shape))
+            # print('x_responses_len : {}'.format(np.array(x_responses_len).shape))
+            # print('x_labels : {}'.format(np.array(x_labels).shape))
+            # print('x_responses_char : {}'.format(np.array(x_responses_char).shape))
+            # print(np.array(x_responses_char))
+            # print('x_responses_char_len : {}'.format(np.array(x_responses_char_len).shape))
 
             yield np.array(x_utterances), np.array(x_utterances_len), np.array(x_responses), np.array(x_responses_len), \
                   np.array(x_utterances_num), np.array(x_labels), x_ids, \
@@ -336,6 +337,9 @@ if __name__ == '__main__':
     x_responses_char_len : (40, 20)
     ----------
     dataset builded...
+
+
+    # dim.r_charVec: x_r_char, 即 x_responses_char
     '''
 
 
