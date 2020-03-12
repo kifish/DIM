@@ -35,11 +35,11 @@ batch_size=20 # need ~16GB gpu memory
 lambda=0
 dropout_keep_prob=0.8
 num_epochs=10
-evaluate_every=5000
+evaluate_every=50000
 
 PKG_DIR=${parentdir}
 # run in p100 but boom in v100 !
-PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/model/train_s.py \
+PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=2 python -u ${PKG_DIR}/model/train_s.py \
                 --train_file $train_file \
                 --valid_file $valid_file \
                 --vocab_file $vocab_file \
@@ -58,4 +58,4 @@ PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/mo
                 --l2_reg_lambda $lambda \
                 --dropout_keep_prob $dropout_keep_prob \
                 --num_epochs $num_epochs \
-                --evaluate_every $evaluate_every
+                --evaluate_every $evaluate_every > log.txt

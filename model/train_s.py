@@ -88,7 +88,8 @@ with tf.Graph().as_default():
             l2_reg_lambda=FLAGS.l2_reg_lambda)
         # Define Training procedure
         global_step = tf.Variable(0, name="global_step", trainable=False)
-        starter_learning_rate = 0.001
+        # starter_learning_rate = 0.001
+        starter_learning_rate = 0.001 / 20  # 模拟
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
                                                                    5000, 0.96, staircase=True)
         optimizer = tf.train.AdamOptimizer(learning_rate)
