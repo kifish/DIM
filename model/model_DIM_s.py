@@ -119,8 +119,8 @@ class DIM(object):
         self.personas_num = tf.placeholder(tf.int32, [None], name="personas_num")
         
         # diff1
-        # self.target = tf.placeholder(tf.float32, [None], name="target") # float not int ;float32 for sigmoid
-        self.target = tf.placeholder(tf.int64, [None], name="target") # int64 fot softmax
+        self.target = tf.placeholder(tf.float32, [None], name="target") # float not int ;float32 for sigmoid
+        # self.target = tf.placeholder(tf.int64, [None], name="target") # int64 fot softmax
 
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
@@ -355,24 +355,24 @@ class DIM(object):
             logits = tf.reshape(tf.matmul(full_out, s_w) + bias, [-1, max_response_num])   # [batch_size, max_response_num]
             self.fake_probs = tf.nn.softmax(logits, name="fake_probs") # [batch_size, max_response_num]
             # self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.cast(self.target,tf.int64))
-            self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
+            # self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
 
-            # s_logits = tf.gather(logits,indices=0,axis=1)  # [batch_size]
-            # print("s_logits: {}".format(s_logits.get_shape()))
+            s_logits = tf.gather(logits,indices=0,axis=1)  # [batch_size]
+            print("s_logits: {}".format(s_logits.get_shape()))
             
-            # self.probs = tf.nn.sigmoid(s_logits, name="prob")  # [batch_size, ]
-            # losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=s_logits, labels=self.target) # target:  [batch_size, ] 0 or 1
-            self.mean_loss = tf.reduce_mean(self.fake_loss, name="mean_loss") + l2_reg_lambda * l2_loss + sum(
+            self.probs = tf.nn.sigmoid(s_logits, name="prob")  # [batch_size, ]
+            losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=s_logits, labels=self.target) # target:  [batch_size, ] 0 or 1
+            self.mean_loss = tf.reduce_mean(losses, name="mean_loss") + l2_reg_lambda * l2_loss + sum(
                                                               tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
 
         with tf.name_scope("accuracy"):
-            correct_prediction = tf.equal(tf.argmax(self.fake_probs, 1), self.target)
-            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
+            # correct_prediction = tf.equal(tf.argmax(self.fake_probs, 1), self.target)
+            # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
 
             # x = tf.constant([0.9, 2.5, 2.3, 1.5, -4.5])
             # tf.round(x) [ 1.0, 2.0, 2.0, 2.0, -4.0 ]
             # preds = tf.round(self.probs)
             # or
-            # preds = tf.cast((self.probs > 0.5), tf.float32)
-            # correct_prediction = tf.equal(preds, self.target)
-            # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
+            preds = tf.cast((self.probs > 0.5), tf.float32)
+            correct_prediction = tf.equal(preds, self.target)
+            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
