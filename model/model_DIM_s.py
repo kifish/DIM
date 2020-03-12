@@ -169,13 +169,15 @@ class DIM(object):
 
         personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
         personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
-                
-        # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
-        # responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
-        # personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
-        utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)
-        responses_embedded = tf.nn.dropout(responses_embedded, keep_prob=self.dropout_keep_prob)
-        personas_embedded = tf.nn.dropout(personas_embedded, keep_prob=self.dropout_keep_prob)
+        
+        
+        utterances_embedded2 = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        responses_embedded2  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
+        personas_embedded2  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
+        
+        utterances_embedded = tf.nn.dropout(utterances_embedded2, keep_prob=self.dropout_keep_prob)
+        responses_embedded = tf.nn.dropout(responses_embedded2, keep_prob=self.dropout_keep_prob)
+        personas_embedded = tf.nn.dropout(personas_embedded2, keep_prob=self.dropout_keep_prob)
         print("utterances_embedded: {}".format(utterances_embedded.get_shape()))
         print("responses_embedded: {}".format(responses_embedded.get_shape()))
         print("personas_embedded: {}".format(personas_embedded.get_shape()))

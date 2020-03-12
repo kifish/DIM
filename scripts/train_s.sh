@@ -39,7 +39,7 @@ evaluate_every=500
 
 PKG_DIR=${parentdir}
 
-PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=1 python -u ${PKG_DIR}/model/train_s.py \
+PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES='' python -u ${PKG_DIR}/model/train_s.py \
                 --train_file $train_file \
                 --valid_file $valid_file \
                 --vocab_file $vocab_file \
