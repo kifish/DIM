@@ -164,13 +164,13 @@ with tf.Graph().as_default():
               dim.personas_num: x_personas_num
             }
 
-            # _, step, loss= sess.run(
-            #     [train_op, global_step, dim.mean_loss],
-            #     feed_dict)
-
-            _, step, loss, accuracy, predicted_prob = sess.run(
-                [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+            _, step, loss= sess.run(
+                [train_op, global_step, dim.mean_loss],
                 feed_dict)
+
+            # _, step, loss, accuracy, predicted_prob, _, _ = sess.run(
+            #     [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs, dim.fake_probs,dim.fake_loss],
+            #     feed_dict)
 
             if step % 100 == 0:
                 time_str = datetime.datetime.now().isoformat()

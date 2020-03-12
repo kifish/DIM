@@ -118,8 +118,9 @@ class DIM(object):
         self.personas_len = tf.placeholder(tf.int32, [None, max_persona_num], name="personas_len")
         self.personas_num = tf.placeholder(tf.int32, [None], name="personas_num")
         
-        self.target = tf.placeholder(tf.float32, [None], name="target") # float not int ;float32 for sigmoid
-        # self.target = tf.placeholder(tf.int64, [None], name="target") # int64 fot softmax
+        # diff1
+        # self.target = tf.placeholder(tf.float32, [None], name="target") # float not int ;float32 for sigmoid
+        self.target = tf.placeholder(tf.int64, [None], name="target") # int64 fot softmax
 
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
@@ -171,13 +172,27 @@ class DIM(object):
         personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
         
         
-        utterances_embedded2 = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
-        responses_embedded2  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
-        personas_embedded2  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
+        # node_for_print = tf.Print(utterances_embedded,data=[tf.shape(utterances_embedded),
+        #                         tf.shape(utterances_cnn_char_emb),
+        #                         tf.shape(responses_embedded),
+        #                         tf.shape(responses_cnn_char_emb),
+        #                         tf.shape(personas_embedded),
+        #                         tf.shape(personas_cnn_char_emb),
+        #                         ],
+        #                 message= "The shapes are:\n",
+        #                 first_n=1,
+        #                 summarize=10)
+        # batch_size: 16 ;[16 15 20 400][16 15 20 150][16 20 20 400][16 20 20 150][16 5 15 400][16 5 15 150]
+        utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
+        personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
         
-        utterances_embedded = tf.nn.dropout(utterances_embedded2, keep_prob=self.dropout_keep_prob)
-        responses_embedded = tf.nn.dropout(responses_embedded2, keep_prob=self.dropout_keep_prob)
-        personas_embedded = tf.nn.dropout(personas_embedded2, keep_prob=self.dropout_keep_prob)
+
+
+        utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)
+        responses_embedded = tf.nn.dropout(responses_embedded, keep_prob=self.dropout_keep_prob)
+        personas_embedded = tf.nn.dropout(personas_embedded, keep_prob=self.dropout_keep_prob)
         print("utterances_embedded: {}".format(utterances_embedded.get_shape()))
         print("responses_embedded: {}".format(responses_embedded.get_shape()))
         print("personas_embedded: {}".format(personas_embedded.get_shape()))
@@ -338,27 +353,26 @@ class DIM(object):
             bias = tf.Variable(tf.constant(0.1, shape=[1]), name="bias")
             s_w = tf.get_variable("s_w", shape=[last_weight_dim, 1], initializer=tf.contrib.layers.xavier_initializer())
             logits = tf.reshape(tf.matmul(full_out, s_w) + bias, [-1, max_response_num])   # [batch_size, max_response_num]
-            logits = tf.gather(logits,indices=0,axis=1)  # [batch_size]
-            print("logits: {}".format(logits.get_shape()))
-            
-            self.probs = tf.nn.sigmoid(logits, name="prob")  # [batch_size, ]
-            losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=self.target) # target:  [batch_size, ] 0 or 1
-            
-            # self.probs = tf.nn.softmax(logits, name="prob")  # [batch_size, max_response_num]
-            # losses = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
+            self.fake_probs = tf.nn.softmax(logits, name="fake_probs") # [batch_size, max_response_num]
+            # self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.cast(self.target,tf.int64))
+            self.fake_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.target)
 
-
-            self.mean_loss = tf.reduce_mean(losses, name="mean_loss") + l2_reg_lambda * l2_loss + sum(
+            # s_logits = tf.gather(logits,indices=0,axis=1)  # [batch_size]
+            # print("s_logits: {}".format(s_logits.get_shape()))
+            
+            # self.probs = tf.nn.sigmoid(s_logits, name="prob")  # [batch_size, ]
+            # losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=s_logits, labels=self.target) # target:  [batch_size, ] 0 or 1
+            self.mean_loss = tf.reduce_mean(self.fake_loss, name="mean_loss") + l2_reg_lambda * l2_loss + sum(
                                                               tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
 
         with tf.name_scope("accuracy"):
-            # correct_prediction = tf.equal(tf.argmax(self.probs, 1), self.target)
-            # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
+            correct_prediction = tf.equal(tf.argmax(self.fake_probs, 1), self.target)
+            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
 
             # x = tf.constant([0.9, 2.5, 2.3, 1.5, -4.5])
             # tf.round(x) [ 1.0, 2.0, 2.0, 2.0, -4.0 ]
             # preds = tf.round(self.probs)
             # or
-            preds = tf.cast((self.probs > 0.5), tf.float32)
-            correct_prediction = tf.equal(preds, self.target)
-            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
+            # preds = tf.cast((self.probs > 0.5), tf.float32)
+            # correct_prediction = tf.equal(preds, self.target)
+            # self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name="accuracy")
