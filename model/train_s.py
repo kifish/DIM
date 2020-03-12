@@ -59,8 +59,8 @@ charVocab = data_helpers_s.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
 # for debug
-# FLAGS.train_file
-train_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+# FLAGS.valid_file
+train_dataset = data_helpers_s.load_dataset_s(FLAGS.train_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('train dataset size: {}'.format(len(train_dataset)))
 valid_dataset = data_helpers_s.load_dataset_s(FLAGS.valid_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('valid dataset size: {}'.format(len(valid_dataset)))
@@ -164,13 +164,13 @@ with tf.Graph().as_default():
               dim.personas_num: x_personas_num
             }
 
-            _, step, loss= sess.run(
-                [train_op, global_step, dim.mean_loss],
-                feed_dict)
-
-            # _, step, loss, accuracy, predicted_prob, _, _ = sess.run(
-            #     [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs, dim.fake_probs,dim.fake_loss],
+            # _, step, loss= sess.run(
+            #     [train_op, global_step, dim.mean_loss],
             #     feed_dict)
+
+            _, step, loss, accuracy, predicted_prob = sess.run(
+                [train_op, global_step, dim.mean_loss, dim.accuracy, dim.probs],
+                feed_dict)
 
             if step % 100 == 0:
                 time_str = datetime.datetime.now().isoformat()

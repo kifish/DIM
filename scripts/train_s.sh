@@ -30,12 +30,12 @@ max_word_length=18
 embedding_dim=400
 rnn_size=200
 
-batch_size=16 # not 32/40/64 !!! memory leak;eat up to 100+GB; 16 ok ! nothing happens
+batch_size=20 # need ~16GB gpu memory
 
 lambda=0
 dropout_keep_prob=0.8
 num_epochs=10
-evaluate_every=500
+evaluate_every=5000
 
 PKG_DIR=${parentdir}
 # run in p100 but boom in v100 !
