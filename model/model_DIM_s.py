@@ -223,6 +223,7 @@ class DIM(object):
         # utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
         # responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_len, emb]
         # personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
+        # tf.concat 如果输入数据的shape 变化过大 同样会触发memory分配的bug
         utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)
         responses_embedded = tf.nn.dropout(responses_embedded, keep_prob=self.dropout_keep_prob)
         personas_embedded = tf.nn.dropout(personas_embedded, keep_prob=self.dropout_keep_prob)
