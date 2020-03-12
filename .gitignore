@@ -1,6 +1,6 @@
 
 data/personachat/
 data/personachat_processed/
-
+scripts/runs/
 *.pyc
 
