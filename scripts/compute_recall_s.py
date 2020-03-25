@@ -1,6 +1,7 @@
 
+#coding=utf8
 import numpy as np
-test_out_filename = "persona_test_out.txt"
+test_out_filename = "persona_test_out_ex2.txt"
 
 def to_sessions(results):
     sessions = []
@@ -17,10 +18,10 @@ def to_sessions(results):
                 print('this session has no positive example or this'
                 'session has more than one example')
             one_sess = []
-    assert len(sessions) == results / 20
+    print('sessions : {}'.format(len(sessions)))
+    print('len(results) / 20 : {}'.format(len(results) / 20))
+    # assert len(sessions) == len(results) / 20
     return sessions
-
-
 
 
 def recall_at_position_k(sort_data, k):
@@ -51,9 +52,9 @@ with open(test_out_filename, 'r') as f:
         prob, label = line.strip().split('\t')
         prob = float(prob)
         label = float(label)
-        results.append(prob,label)
-    print('the number of examples : {}'.format(results)) # 19个负例和1个正例算20个
-    print('the number of positive examples : {}'.format(results / 20 ))
+        results.append((prob,label))
+    print('the number of examples : {}'.format(len(results))) # 19个负例和1个正例算20个
+    print('the number of positive examples : {}'.format(len(results) / 20 ))
     sessions = to_sessions(results)
     sum_r_1 = 0
     sum_r_2 = 0
@@ -75,3 +76,14 @@ with open(test_out_filename, 'r') as f:
     print("recall@2 = {}".format(recall["recall@2"]))
     print("recall@5 = {}".format(recall["recall@5"]))
 
+
+# the number of examples : 150240
+# the number of positive examples : 7512
+# this session has no positive example or thissession has more than one example
+# this session has no positive example or thissession has more than one example
+# sessions : 7510
+# len(results) / 20 : 7512
+# num_query = 7510
+# recall@1 = 0.772436750999
+# recall@2 = 0.886950732357
+# recall@5 = 0.97017310253

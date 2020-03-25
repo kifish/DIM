@@ -13,7 +13,7 @@ def get_char_embedding(charVocab):
     char_size = len(charVocab)
     embeddings = np.zeros((char_size, char_size), dtype='float32')
     for i in range(1, char_size):
-        embeddings[i, i] = 1.0
+        embeddings[i, i] = 1.0 # onehot编码char
     return tf.constant(embeddings, name="word_char_embedding")
 
 def load_embed_vectors(fname, dim):
@@ -53,7 +53,7 @@ def lstm_layer(inputs, input_seq_len, rnn_size, dropout_keep_prob, scope, scope_
 def cnn_layer(inputs, filter_sizes, num_filters, scope=None, scope_reuse=False):
     with tf.variable_scope(scope, reuse=scope_reuse):
         input_size = inputs.get_shape()[2].value
-
+    # [batch_size*max_utter_num*max_utter_len, maxWordLength, char_dim]
         outputs = []
         for i, filter_size in enumerate(filter_sizes):
             with tf.variable_scope("conv_{}".format(i)):
@@ -265,6 +265,7 @@ class DIM(object):
             m_r_pr = tf.reshape(m_r_pr, [-1, max_response_len, concat_dim])  # [batch_size*max_response_num, max_response_len, dim]
             
             tiled_flattened_personas_len = tf.reshape(tf.tile(tf.expand_dims(self.personas_len, 1), [1, max_response_num, 1]), [-1, ]) # [batch_size*max_response_num*max_persona_num, ]
+            # LSTM2
             p_pr_rnn_output, p_pr_rnn_state = lstm_layer(m_p_pr, tiled_flattened_personas_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             r_pr_rnn_output, r_pr_rnn_state = lstm_layer(m_r_pr, flattened_responses_len, rnn_size_layer_2, self.dropout_keep_prob, rnn_scope_cross, scope_reuse=True)
             personas_output_cross_pr = tf.concat(axis=-1, values=p_pr_rnn_output)   # [batch_size*max_response_num*max_persona_num, max_persona_len, rnn_size*2]
@@ -275,6 +276,8 @@ class DIM(object):
         # =============================== Aggregation layer ===============================
         with tf.variable_scope("aggregation_layer") as vs:
             # aggregate utterance across utterance_len
+            # 在这一步没有处理mask
+            # padding seq的隐状态为全0,但是真实句子的隐状态可能小于0
             final_utterances_max = tf.reduce_max(utterances_output_cross_ur, axis=1)
             final_utterances_state = tf.concat(axis=1, values=[u_ur_rnn_state[0].h, u_ur_rnn_state[1].h])
             final_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])  # [batch_size*max_response_num*max_utter_num, 4*rnn_size]
@@ -283,6 +286,7 @@ class DIM(object):
             final_utterances = tf.reshape(final_utterances, [-1, max_utter_num, output_dim*2])   # [batch_size*max_response_num, max_utter_num, 4*rnn_size]
             tiled_utters_num = tf.reshape(tf.tile(tf.expand_dims(self.utters_num, 1), [1, max_response_num]), [-1, ])  # [batch_size*max_response_num, ]
             rnn_scope_aggre = "bidirectional_rnn_aggregation"
+            # lstm3
             final_utterances_output, final_utterances_state = lstm_layer(final_utterances, tiled_utters_num, rnn_size, self.dropout_keep_prob, rnn_scope_aggre, scope_reuse=False)
             final_utterances_output = tf.concat(axis=2, values=final_utterances_output)  # [batch_size*max_response_num, max_utter_num, 2*rnn_size]
             final_utterances_max = tf.reduce_max(final_utterances_output, axis=1)                                          # [batch_size*max_response_num, 2*rnn_size]
@@ -290,11 +294,11 @@ class DIM(object):
             aggregated_utterances = tf.concat(axis=1, values=[final_utterances_max, final_utterances_state])               # [batch_size*max_response_num, 4*rnn_size]
 
             # aggregate response across response_len
+            # 在一个response内做max: LSTM2
             final_responses_max = tf.reduce_max(responses_output_cross_ur, axis=1)                           # [batch_size*max_response_num, 2*rnn_size]
             final_responses_state = tf.concat(axis=1, values=[r_ur_rnn_state[0].h, r_ur_rnn_state[1].h])     # [batch_size*max_response_num, 2*rnn_size]
             aggregated_responses_ur = tf.concat(axis=1, values=[final_responses_max, final_responses_state]) # [batch_size*max_response_num, 4*rnn_size]
             print("establish RNN aggregation on context and response")
-
 
             # aggregate persona across persona_len
             final_personas_max = tf.reduce_max(personas_output_cross_pr, axis=1)                        # [batch_size*max_response_num*max_persona_num, 2*rnn_size]

@@ -5,9 +5,9 @@ import os
 import time
 import datetime
 import operator
-import metrics
+import metrics_s
 from collections import defaultdict
-from model import data_helpers
+from model import data_helpers_s
 
 # Files
 tf.flags.DEFINE_string("test_file", "", "path to test file")
@@ -39,12 +39,12 @@ for attr, value in sorted(FLAGS.__flags.items()):
     print("{}={}".format(attr.upper(), value))
 print("")
 
-vocab = data_helpers.load_vocab(FLAGS.vocab_file)
+vocab = data_helpers_s.load_vocab(FLAGS.vocab_file)
 print('vocabulary size: {}'.format(len(vocab)))
-charVocab = data_helpers.load_char_vocab(FLAGS.char_vocab_file)
+charVocab = data_helpers_s.load_char_vocab(FLAGS.char_vocab_file)
 print('charVocab size: {}'.format(len(charVocab)))
 
-test_dataset = data_helpers.load_dataset_s(FLAGS.test_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
+test_dataset = data_helpers_s.load_dataset_s(FLAGS.test_file, vocab, FLAGS.max_utter_num, FLAGS.max_utter_len, FLAGS.max_response_len, FLAGS.max_persona_len)
 print('test dataset size: {}'.format(len(test_dataset)))
 
 print("\nEvaluating...\n")
@@ -90,7 +90,7 @@ with graph.as_default():
 
         results = []
         num_test = 0
-        test_batches = data_helpers.batch_iter_s(test_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
+        test_batches = data_helpers_s.batch_iter_s(test_dataset, FLAGS.batch_size, 1, FLAGS.max_utter_num, FLAGS.max_utter_len, \
             FLAGS.max_response_num, FLAGS.max_response_len, FLAGS.max_persona_num, FLAGS.max_persona_len, \
             charVocab, FLAGS.max_word_length, shuffle=False)
         for test_batch in test_batches:
@@ -123,15 +123,15 @@ with graph.as_default():
                 prob = predicted_prob[i] # float
                 us_id = x_ids[i]
                 label = x_target[i] # 0 or 1 float
-                results.append(prob, label)
-# accu, precision, recall, f1, loss = metrics.classification_metrics(results)
-# print('Accuracy: {}, Precision: {}  Recall: {}  F1: {} Loss: {}'.format(accu, precision, recall, f1, loss))
+                results.append((prob, label))
+accu, precision, recall, f1, loss = metrics_s.classification_metrics(results)
+print('Accuracy: {}, Precision: {}  Recall: {}  F1: {} Loss: {}'.format(accu, precision, recall, f1, loss))
 
-# mvp = metrics.mean_average_precision(results)
-# mrr = metrics.mean_reciprocal_rank(results)
-# top_1_precision = metrics.top_1_precision(results) # r1
-# total_valid_query = metrics.get_num_valid_query(results)
-# print('MAP (mean average precision: {}\tMRR (mean reciprocal rank): {}\tTop-1 precision: {}\tNum_query: {}'.format(mvp, mrr, top_1_precision, total_valid_query))
+mvp = metrics_s.mean_average_precision(results)
+mrr = metrics_s.mean_reciprocal_rank(results)
+top_1_precision = metrics_s.top_1_precision(results) # r1
+total_valid_query = metrics_s.get_num_valid_query(results)
+print('MAP (mean average precision: {}\tMRR (mean reciprocal rank): {}\tTop-1 precision: {}\tNum_query: {}'.format(mvp, mrr, top_1_precision, total_valid_query))
 
 out_path = FLAGS.output_file
 print("Saving evaluation to {}".format(out_path))
