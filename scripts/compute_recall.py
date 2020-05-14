@@ -1,6 +1,6 @@
 
 test_out_filename = "persona_test_out.txt"
-
+test_out_filename = 'runs/1589273389/persona_test_out.txt'
 with open(test_out_filename, 'r') as f:
 	cur_q_id = None
 	num_query = 0

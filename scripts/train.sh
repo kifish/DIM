@@ -4,11 +4,11 @@ parentdir="$(dirname $cur_dir)"
 DATA_DIR=${parentdir}/data/personachat_processed
 
 # for self_original
-train_file=$DATA_DIR/processed_train_self_original.txt
-valid_file=$DATA_DIR/processed_valid_self_original.txt
+# train_file=$DATA_DIR/processed_train_self_original.txt
+# valid_file=$DATA_DIR/processed_valid_self_original.txt
 # for self_revised
-# train_file=$DATA_DIR/processed_train_self_revised.txt
-# valid_file=$DATA_DIR/processed_valid_self_revised.txt
+train_file=$DATA_DIR/processed_train_self_revised.txt
+valid_file=$DATA_DIR/processed_valid_self_revised.txt
 # for other_original
 # train_file=$DATA_DIR/processed_train_other_original.txt
 # valid_file=$DATA_DIR/processed_valid_other_original.txt
