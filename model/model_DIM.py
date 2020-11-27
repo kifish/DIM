@@ -167,8 +167,22 @@ class DIM(object):
 
         personas_cnn_char_emb = cnn_layer(personas_char_embedded, filter_sizes=[3, 4, 5], num_filters=50, scope="CNN_char_emb", scope_reuse=True)      # [batch_size*max_persona_num*max_persona_len,  emb]
         personas_cnn_char_emb = tf.reshape(personas_cnn_char_emb, [-1, max_persona_num, max_persona_len, cnn_char_dim])                                # [batch_size, max_persona_num, max_persona_len, emb]
-                
-        utterances_embedded = tf.concat(axis=-1, values=[utterances_embedded, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
+        
+
+        # for debug
+        node_for_print = tf.Print(utterances_embedded,data=[tf.shape(utterances_embedded),
+                                tf.shape(utterances_cnn_char_emb),
+                                tf.shape(responses_embedded),
+                                tf.shape(responses_cnn_char_emb),
+                                tf.shape(personas_embedded),
+                                tf.shape(personas_cnn_char_emb),
+                                ],
+                        first_n=1,
+                        message= "The shapes are:\n",
+                        summarize=10)
+        # The shapes are:
+        # [16 15 20 400][16 15 20 150][16 20 20 400][16 20 20 150][16 5 15 400][16 5 15 150]
+        utterances_embedded = tf.concat(axis=-1, values=[node_for_print, utterances_cnn_char_emb])   # [batch_size, max_utter_num, max_utter_len, emb]
         responses_embedded  = tf.concat(axis=-1, values=[responses_embedded, responses_cnn_char_emb])     # [batch_size, max_response_num, max_response_len, emb]
         personas_embedded  = tf.concat(axis=-1, values=[personas_embedded, personas_cnn_char_emb])        # [batch_size, max_persona_num, max_persona_len, emb]
         utterances_embedded = tf.nn.dropout(utterances_embedded, keep_prob=self.dropout_keep_prob)

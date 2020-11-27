@@ -27,7 +27,7 @@ batch_size=32
 
 PKG_DIR=${parentdir}
 
-PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/model/eval.py \
+PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=2 python -u ${PKG_DIR}/model/eval.py \
                   --test_file $test_file \
                   --vocab_file $vocab_file \
                   --char_vocab_file $char_vocab_file \
@@ -40,4 +40,4 @@ PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/mo
                   --max_persona_len $max_persona_len \
                   --max_word_length $max_word_length \
                   --batch_size $batch_size \
-                  --checkpoint_dir $latest_checkpoint > log_DIM_test.txt 2>&1 &
+                  --checkpoint_dir $latest_checkpoint > log_DIM_test_experiment1.txt 2>&1 &

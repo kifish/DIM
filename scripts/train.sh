@@ -57,4 +57,4 @@ PYTHONPATH=${PKG_DIR}:$PYTHONPATH CUDA_VISIBLE_DEVICES=3 python -u ${PKG_DIR}/mo
                 --l2_reg_lambda $lambda \
                 --dropout_keep_prob $dropout_keep_prob \
                 --num_epochs $num_epochs \
-                --evaluate_every $evaluate_every > log_DIM_train.txt 2>&1 &
+                --evaluate_every $evaluate_every 

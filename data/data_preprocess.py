@@ -208,31 +208,67 @@ if __name__ == '__main__':
 		os.makedirs(output_path)
 
 	files = [file for file in os.listdir(input_path)]
-	files_none = [file for file in files if file.split("_")[1] == "none"]
-	files_self = [file for file in files if file.split("_")[1] == "self"]
-	files_other = [file for file in files if file.split("_")[1] == "other"]
-	files_both = [file for file in files if file.split("_")[1] == "both"]
+	# files_none = [file for file in files if file.split("_")[1] == "none"]
+	files_self = [file for file in files if file[-4:] == '.txt' and file.split("_")[1] == "self"]
+	# files_other = [file for file in files if file.split("_")[1] == "other"]
+	# files_both = [file for file in files if file.split("_")[1] == "both"]
 
 	print("There are {} files to process.\nStart processing data ...".format(len(files)))
 
-	for file in files_none:
-		print("Preprocessing {} ...".format(file))
-		data_process_none(input_path, output_path, file)
-		print("="*60)
+	# for file in files_none:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_none(input_path, output_path, file)
+	# 	print("="*60)
 	
 	for file in files_self:
 		print("Preprocessing {} ...".format(file))
 		data_process_self(input_path, output_path, file)
 		print("="*60)
 	
-	for file in files_other:
-		print("Preprocessing {} ...".format(file))
-		data_process_other(input_path, output_path, file)
-		print("="*60)
+	# for file in files_other:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_other(input_path, output_path, file)
+	# 	print("="*60)
 	
-	for file in files_both:
-		print("Preprocessing {} ...".format(file))
-		data_process_both(input_path, output_path, file)
-		print("="*60)
+	# for file in files_both:
+	# 	print("Preprocessing {} ...".format(file))
+	# 	data_process_both(input_path, output_path, file)
+	# 	print("="*60)
 	
 	print("data preprocess done!")
+
+
+	"""
+	Start processing data ...
+	Preprocessing test_self_original.txt ...
+	test_self_original.txt is composed of 968 dialogues
+	test_self_original.txt is composed of 7512 context-candidates
+	Saving dataset to processed_test_self_original.txt ...
+	============================================================
+	Preprocessing test_self_revised.txt ...
+	test_self_revised.txt is composed of 968 dialogues
+	test_self_revised.txt is composed of 7512 context-candidates
+	Saving dataset to processed_test_self_revised.txt ...
+	============================================================
+	Preprocessing train_self_original.txt ...
+	train_self_original.txt is composed of 8939 dialogues
+	train_self_original.txt is composed of 65719 context-candidates
+	Saving dataset to processed_train_self_original.txt ...
+	============================================================
+	Preprocessing train_self_revised.txt ...
+	train_self_revised.txt is composed of 8939 dialogues
+	train_self_revised.txt is composed of 65719 context-candidates
+	Saving dataset to processed_train_self_revised.txt ...
+	============================================================
+	Preprocessing valid_self_original.txt ...
+	valid_self_original.txt is composed of 1000 dialogues
+	valid_self_original.txt is composed of 7801 context-candidates
+	Saving dataset to processed_valid_self_original.txt ...
+	============================================================
+	Preprocessing valid_self_revised.txt ...
+	valid_self_revised.txt is composed of 1000 dialogues
+	valid_self_revised.txt is composed of 7801 context-candidates
+	Saving dataset to processed_valid_self_revised.txt ...
+	============================================================
+	data preprocess done!
+	"""
